@@ -5,17 +5,12 @@ struct String_Format {
 	int subparam;
 	int type;
 	int size;
-	int frac_digits;
 	int left_sp;
 	int right_sp;
 };
 
 static int write_formatted_value(String& str, int pos, String_Format& f, int spec_len) {
-	int elem_size = f.size;
-	if (f.frac_digits)
-		elem_size = f.size + 1 + f.frac_digits;
-
-	int total = f.left_sp + elem_size + f.right_sp;
+	int total = f.left_sp + f.size + f.right_sp;
 	str.resize(str.len + total - spec_len);
 
 	char *p = &str.data()[pos];
@@ -65,16 +60,6 @@ static int write_formatted_value(String& str, int pos, String_Format& f, int spe
 			p += n_digits;
 		}
 	}
-	else if (f.type == 5 || f.type == 6) {
-		double param = 0;
-		if (f.type == 5)
-			param = va_arg(args, float);
-		else
-			param = va_arg(args, double);
-
-		snprintf(p, elem_size, "%*.*f", f.size, f.frac_digits, param);
-		p += elem_size;
-	}
 
 	for (int i = 0; i < f.right_sp; i++)
 		*p++ = ' ';
@@ -112,7 +97,7 @@ String make_formatted_string(const char *fmt, va_list args) {
 				f.subparam++;
 			}
 			else if (f.param == 0) {
-				const char *data_types = "sdDxXfF";
+				const char *data_types = "sdDxX";
 				int s = strlen(data_types);
 				for (int i = 0; i < s; i++) {
 					if (c == data_types[i]) {
