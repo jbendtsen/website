@@ -3,12 +3,14 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <time.h>
 #include "website.h"
 
 #define LISTEN_BACKLOG 10
 
 /*
 struct File {
+	time_t last_reloaded;
 	int flags;
 	int size;
 	u8 *buffer;
@@ -17,16 +19,18 @@ struct File {
 	char *fname;
 };
 
-struct File_Pool {
-	int size;
+struct File_Database {
+	//int size;
 	int n_files;
+	char *map_buffer;
 	char *label_pool;
+	char *fname_pool;
 	char *type_pool;
 	File *files;
 };
 */
 
-int make_file_pool(File_Pool& fp) {
+int make_file_db(File_Database& db) {
 	FILE *f = fopen("file-map.txt", "r");
 	if (!f) {
 		log_error("Could not open file-map.txt");
@@ -38,28 +42,152 @@ int make_file_pool(File_Pool& fp) {
 	rewind(f);
 
 	if (sz <= 0) {
-		log_error("Failed to read from file-map.txt")
+		log_error("Failed to read from file-map.txt");
+		return 2;
 	}
 
-	char *pool = new char[sz];
-	fread(pool, 1, sz, f);
+	db.map_buffer = new char[sz * 4];
+	db.label_pool = &db.map_buffer[sz];
+	db.fname_pool = &db.map_buffer[sz * 2];
+	db.type_pool  = &db.map_buffer[sz * 3];
+	db.n_files = 0;
+
+	fread(buf, 1, sz, f);
 	fclose(f);
 
+	int line_no = 0;
+	int pool = 0;
+	bool was_ch = false;
+	int offsets[] = {0, 0, 0};
+
+	for (int i = 0; i < sz; i++) {
+		char c = db.map_buffer[i];
+		char ch = c == ' ' || c == '\n' || c == '\r' ? 0 : c;
+
+		if (ch || was_ch) {
+			db.map_buffer[sz * (pool + 1) + offsets[pool]] = ch;
+			offsets[pool]++;
+		}
+
+		if (!was_ch) {
+			if (c == ' ') {
+				pool++;
+				if (pool >= 3) {
+					pool = 0;
+					log_info("file-map.txt: line {d} contains too many parameters, wrapping around", line_no);
+				}
+			}
+			else if (c == '\r' || c == '\n') {
+				pool = 0;
+				db.n_files++;
+			}
+		}
+
+		if (c == '\n')
+			line_no++;
+
+		was_ch = ch != 0;
+	}
+
+	db.files = new File[db.n_files];
+	memset(db.files, 0, db.n_files * sizeof(File));
+
+	{
+		int off = 0;
+		for (int i = 0; i < db.n_files; i++) {
+			db.files[i].label = &db.label_pool[off];
+			off += strlen(db.files[i].label) + 1;
+		}
+	}
+	{
+		int off = 0;
+		for (int i = 0; i < db.n_files; i++) {
+			db.files[i].fname = &db.fname_pool[off];
+			off += strlen(db.files[i].fname) + 1;
+		}
+	}
+	{
+		int off = 0;
+		for (int i = 0; i < db.n_files; i++) {
+			db.files[i].type = &db.type_pool[off];
+			off += strlen(db.files[i].type) + 1;
+		}
+	}
+}
+
+int lookup_file(File_Database& db, char *name, int len) {
+	char *p = db.label_pool;
+	int file = -1;
+	int off = 0;
+	int matches = 0;
+
+	while (file < db.n_files) {
+		char c = *p++;
+		if (c == name[off]) {
+
+		}
+	}
+
+	if (file < 0)
+		return -1;
+
+	struct timespec spec;
+	long t = clock_gettime(CLOCK_BOOTTIME, &spec);
+
+	File *f = &db.files[file];
+	long threshold = f->last_reloaded + SECS_UNTIL_RELOAD;
+
+	if (!f->buffer || t >= threshold || threshold <= SECS_UNTIL_RELOAD) {
+		if (f->buffer)
+			delete[] f->buffer;
+
+		FILE *fp = fopen(fname, "rb");
+		if (!fp)
+			return -2;
+
+		fseek(fp, 0, SEEK_END);
+		int sz = ftell(fp);
+		rewind(fp);
+
+		if (sz <= 0)
+			return -3;
+
+		f->size = sz;
+		f->buffer = new char[sz];
+		fread(f->buffer, 1, sz, fp);
+		fclose(fp);
+	}
+
+	return file;
+}
+
+int write_http_response(int fd, char *status, char *content_type, char *data, int size) {
+	char buf[256];
+	char date[96];
+
+	time_t t = time(nullptr);
+	struct tm *utc = gmtime(&t);
+	strftime(date, 96, "%a, %d %m %Y %H:%M:%S", utc);
+
+	String response(buf, 256);
+	write_formatted_value(response,
+		"{s}\r\n"
+		"Date: {s} GMT\r\n"
+		"Server: jackbendtsen.com.au\r\n"
+		"Content-Type: {s}\r\n"
+		"Content-Length: {d}\r\n\r\n",
+		status, date, content_type, size
+	);
+
+	write(fd, response.data(), response.size());
+	write(fd, data, size);
+}
+
+int serve_page(int fd, char *name, int len) {
 
 }
 
-int lookup_file(File_Pool& fp, char *str, int len) {
-
-}
-
-/*
-int main() {
-	Bucket_Array<1024, 64> response;
-	response.append("Hello!");
-}
-*/
-
-static File_Pool pool;
+static File_Database db;
 
 #define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
@@ -97,35 +225,21 @@ int serve_request(int fd) {
 		int len = p - name;
 		int file = lookup_file(pool, name, len);
 		if (file >= 0) {
-			char date[100];
-			format("{s}, {d} {d} {d} {d}:{d}:{d}");
-
-			String response(buf, 1024);
-			write_formatted_value(response,
-				"200 OK\r\n"
-				"Date: {s} GMT\r\n"
-				"Server: jackbendtsen.com.au\r\n"
-				"Content-Type: {s}\r\n"
-				"Content-Length: {d}\r\n\r\n",
-				date, pool.files[file].type, pool.files[file].size
-			);
-
-			write(fd, response.data(), response.size());
-			write(fd, pool.files[file].buffer, pool.files[file].size);
+			File *f = &pool[file];
+			write_http_response(fd, "200 OK", f->type, f->buffer, f->size);
 		}
 		else {
-			serve_page(name, len);
+			serve_page(fd, name, len);
 		}
 	}
 	else { // home page
-		serve_page(nullptr, 0);
+		serve_page(fd, nullptr, 0);
 	}
-
 }
 
 int main() {
 	init_logger();
-	pool = make_file_pool();
+	db = make_file_db();
 
 	int sock_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 

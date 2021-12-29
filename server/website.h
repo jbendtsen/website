@@ -5,21 +5,8 @@
 typedef unsigned char u8;
 typedef unsigned char u32;
 
-template<int, int>
-struct Bucket_Array<int bs, int max> {
-	constexpr int bucket_size = bs;
-	constexpr int max_buckets = max;
-
-	u8 *buckets[max] = {nullptr};
-	int buck;
-	int head;
-
-	void append(const char *str) {
-		
-	}
-};
-
 struct File {
+	long last_reloaded;
 	int flags;
 	int size;
 	u8 *buffer;
@@ -28,10 +15,11 @@ struct File {
 	char *fname;
 };
 
-struct File_Pool {
-	int size;
+struct File_Database {
+	//int size;
 	int n_files;
 	char *label_pool;
+	char *fname_pool;
 	char *type_pool;
 	File *files;
 };
