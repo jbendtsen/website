@@ -21,22 +21,25 @@ void init_logger() {
 	error.name = "error";
 }
 
+static void log(Debug_Output& dbg, const char *fmt, va_list args) {
+	String out;
+	write_formatted_string(out, fmt, args);
+	fwrite(out.data(), 1, out.size(), dbg.output);
+
+	if (out.data()[out.size()-1] != '\n')
+		fputc('\n', dbg.output);
+}
+
 void log_info(const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-
-	String out = make_formatted_string(fmt, args);
-	fwrite(out.data(), 1, out.size(), info.output);
-
+	log(info, fmt, args);
 	va_end(args);
 }
 
 void log_error(const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
-
-	String out = make_formatted_string(fmt, args);
-	fwrite(out.data(), 1, out.size(), error.output);
-
+	log(error, fmt, args);
 	va_end(args);
 }

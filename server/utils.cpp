@@ -67,8 +67,8 @@ static int write_formatted_value(String& str, int pos, String_Format& f, int spe
 	return pos;
 }
 
-String make_formatted_string(const char *fmt, va_list args) {
-	String str;
+void write_formatted_string(String& str, const char *fmt, va_list args) {
+	str.resize(0);
 	if (!fmt)
 		return str;
 
@@ -142,13 +142,19 @@ String make_formatted_string(const char *fmt, va_list args) {
 	}
 }
 
-void String::resize(int sz) {
+int String::resize(int sz) {
 	if (sz < 0)
-		return;
+		return len;
 
 	if (sz <= capacity) {
 		len = sz;
-		return;
+		return len;
+	}
+
+	if (ptr & 1) {
+		if (sz > capacity) sz = capacity;
+		len = sz;
+		return len;
 	}
 
 	int old_cap = capacity;
@@ -170,6 +176,7 @@ void String::resize(int sz) {
 
 	ptr = buf;
 	len = sz;
+	return len;
 }
 
 void String::add(String& str) {
@@ -192,4 +199,18 @@ void String::add(char *str, int size) {
 	char *dst_data = data();
 	memcpy(dst_data + head, str, size);
 	dst_data[head + size] = 0;
+}
+
+char *append_string(char *dst, char *src, int len) {
+	if (len <= 0) {
+		while (*src)
+			*dst++ = *src++;
+	}
+	else {
+		for (int i = 0; i < len; i++)
+			*dst++ = *src++;
+	}
+
+	*dst = 0;
+	return dst;
 }

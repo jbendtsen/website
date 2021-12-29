@@ -24,16 +24,20 @@ struct File {
 	int size;
 	u8 *buffer;
 	char *label;
+	char *type;
 	char *fname;
 };
 
 struct File_Pool {
 	int size;
 	int n_files;
-	u32 *pool;
+	char *label_pool;
+	char *type_pool;
 	File *files;
 };
 
+// Can be used as a managed or unmanaged string.
+// If the string is unmanaged, the LSB of 'ptr' is set to 1.
 struct String {
 	static constexpr INITIAL_SIZE = 32;
 
@@ -48,33 +52,36 @@ struct String {
 		len = 0;
 		initial_buf[0] = 0;
 	}
+	String(char *buf, int size) {
+		ptr = buf | 1;
+		capacity = size;
+		len = 0;
+	}
 	~String() {
-		if (ptr) delete[] ptr;
+		if (ptr && (ptr & 1) == 0)
+			delete[] ptr;
 	}
 
 	char *data() {
-		return ptr ? ptr : &initial_buf[0];
+		return ptr ? (ptr & ~1) : &initial_buf[0];
 	}
 	int size() {
 		return len;
 	}
 
-	void resize(int sz);
+	int resize(int sz);
 	void add(String& str);
 	void add(const char *str, int len);
-
-	void operator=(const char *str) {
-		int sz = strlen(str);
-		int head = len;
-		resize(len + sz + 1);
-		strcpy(data() + head, str);
-	}
 
 	static String format(const char *fmt, ...) {
 		va_list args;
 		va_start(args, fmt);
-		String str = make_formatted_string(fmt, args);
+		String str;
+		make_formatted_string(str, fmt, args);
 		va_end(args);
 		return str;
 	}
 };
+
+void write_formatted_string(String& str, const char *fmt, va_list args);
+char *append_string(char *dst, char *src, int len);

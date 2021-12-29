@@ -1,3 +1,2 @@
-style.css css/style.css
-favicon.png favicon.png
-
+style.css css/style.css text/css
+favicon.png favicon.png image/png
