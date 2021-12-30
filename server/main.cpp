@@ -27,11 +27,11 @@ int make_file_db(File_Database& db) {
 		return 2;
 	}
 
-	db.map_buffer = new char[sz * 4]();
-	db.label_pool = &db.map_buffer[sz];
-	db.fname_pool = &db.map_buffer[sz * 2];
-	db.type_pool  = &db.map_buffer[sz * 3];
-	db.pool_size = sz;
+	db.pool_size = sz + 1;
+	db.map_buffer = new char[db.pool_size * 4]();
+	db.label_pool = &db.map_buffer[db.pool_size];
+	db.fname_pool = &db.map_buffer[db.pool_size * 2];
+	db.type_pool  = &db.map_buffer[db.pool_size * 3];
 	db.n_files = 0;
 
 	fread(db.map_buffer, 1, sz, f);
@@ -44,15 +44,15 @@ int make_file_db(File_Database& db) {
 
 	for (int i = 0; i < sz; i++) {
 		char c = db.map_buffer[i];
-		char ch = c == ' ' || c == '\n' || c == '\r' ? 0 : c;
+		char character = c != ' ' && c != '\t' && c != '\n' && c != '\r' ? c : 0;
 
-		if (ch || was_ch) {
-			db.map_buffer[sz * (pool + 1) + offsets[pool]] = ch;
-			offsets[pool]++;
-		}
+		db.map_buffer[db.pool_size * (pool + 1) + offsets[pool]] = character;
+		offsets[pool]++;
 
-		if (!was_ch) {
-			if (c == ' ') {
+		int file_inc = 0;
+
+		if (!character) {
+			if (c == ' ' || c == '\t') {
 				pool++;
 				if (pool >= 3) {
 					pool = 0;
@@ -61,14 +61,17 @@ int make_file_db(File_Database& db) {
 			}
 			else if (c == '\r' || c == '\n') {
 				pool = 0;
-				db.n_files++;
+				file_inc = 1;
 			}
 		}
 
+		if (i == sz-1)
+			file_inc = 1;
+
+		db.n_files++;
+
 		if (c == '\n')
 			line_no++;
-
-		was_ch = ch != 0;
 	}
 
 	db.files = new File[db.n_files];
@@ -108,14 +111,14 @@ int lookup_file(File_Database& db, char *name, int len) {
 	while (file < db.n_files) {
 		char c = *p++;
 		if (c == 0) {
-			if (off == matches)
+			if (off == len && matches == len)
 				break;
 
 			off = -1;
 			matches = 0;
 			file++;
 		}
-		else if (c == name[off]) {
+		else if (off < len && c == name[off]) {
 			matches++;
 		}
 
@@ -131,7 +134,7 @@ int lookup_file(File_Database& db, char *name, int len) {
 	File *f = &db.files[file];
 	long threshold = f->last_reloaded + SECS_UNTIL_RELOAD;
 
-	if (!f->buffer || t >= threshold || threshold <= SECS_UNTIL_RELOAD) {
+	if (!f->buffer || t >= threshold || t < threshold - (1LL << 63)) {
 		if (f->buffer)
 			delete[] f->buffer;
 
@@ -275,8 +278,6 @@ int main() {
 		FD_ZERO(&set);
 		FD_SET(fd, &set);
 		select(fd + 1, &set, nullptr, nullptr, nullptr);
-
-		log_info("received request");
 
 		int flags = fcntl(fd, F_GETFL);
 		flags |= O_NONBLOCK;
