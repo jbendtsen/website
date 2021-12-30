@@ -14,11 +14,11 @@ Debug_Output error;
 void init_logger() {
 	info.output = stdout;
 	info.min_level = info.max_level = 0;
-	info.name = "info";
+	info.name.assign("info", 4);
 
 	error.output = stderr;
 	error.min_level = info.max_level = 0;
-	error.name = "error";
+	error.name.assign("error", 5);
 }
 
 static void log(Debug_Output& dbg, const char *fmt, va_list args) {

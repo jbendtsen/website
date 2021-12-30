@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/select.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -7,28 +8,6 @@
 #include "website.h"
 
 #define LISTEN_BACKLOG 10
-
-/*
-struct File {
-	time_t last_reloaded;
-	int flags;
-	int size;
-	u8 *buffer;
-	char *label;
-	char *type;
-	char *fname;
-};
-
-struct File_Database {
-	//int size;
-	int n_files;
-	char *map_buffer;
-	char *label_pool;
-	char *fname_pool;
-	char *type_pool;
-	File *files;
-};
-*/
 
 int make_file_db(File_Database& db) {
 	FILE *f = fopen("file-map.txt", "r");
@@ -46,13 +25,14 @@ int make_file_db(File_Database& db) {
 		return 2;
 	}
 
-	db.map_buffer = new char[sz * 4];
+	db.map_buffer = new char[sz * 4]();
 	db.label_pool = &db.map_buffer[sz];
 	db.fname_pool = &db.map_buffer[sz * 2];
 	db.type_pool  = &db.map_buffer[sz * 3];
+	db.pool_size = sz;
 	db.n_files = 0;
 
-	fread(buf, 1, sz, f);
+	fread(db.map_buffer, 1, sz, f);
 	fclose(f);
 
 	int line_no = 0;
@@ -113,22 +93,34 @@ int make_file_db(File_Database& db) {
 			off += strlen(db.files[i].type) + 1;
 		}
 	}
+
+	return 0;
 }
 
 int lookup_file(File_Database& db, char *name, int len) {
 	char *p = db.label_pool;
-	int file = -1;
+	int file = 0;
 	int off = 0;
 	int matches = 0;
 
 	while (file < db.n_files) {
 		char c = *p++;
-		if (c == name[off]) {
+		if (c == 0) {
+			if (off == matches)
+				break;
 
+			off = -1;
+			matches = 0;
+			file++;
 		}
+		else if (c == name[off]) {
+			matches++;
+		}
+
+		off++;
 	}
 
-	if (file < 0)
+	if (file >= db.n_files)
 		return -1;
 
 	struct timespec spec;
@@ -141,7 +133,7 @@ int lookup_file(File_Database& db, char *name, int len) {
 		if (f->buffer)
 			delete[] f->buffer;
 
-		FILE *fp = fopen(fname, "rb");
+		FILE *fp = fopen(f->fname, "rb");
 		if (!fp)
 			return -2;
 
@@ -152,8 +144,10 @@ int lookup_file(File_Database& db, char *name, int len) {
 		if (sz <= 0)
 			return -3;
 
+		f->last_reloaded = t;
 		f->size = sz;
-		f->buffer = new char[sz];
+		f->buffer = new u8[sz];
+
 		fread(f->buffer, 1, sz, fp);
 		fclose(fp);
 	}
@@ -161,42 +155,49 @@ int lookup_file(File_Database& db, char *name, int len) {
 	return file;
 }
 
-int write_http_response(int fd, char *status, char *content_type, char *data, int size) {
-	char buf[256];
-	char date[96];
+void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size) {
+	char hdr[256];
+	char datetime[96];
 
 	time_t t = time(nullptr);
 	struct tm *utc = gmtime(&t);
-	strftime(date, 96, "%a, %d %m %Y %H:%M:%S", utc);
+	strftime(datetime, 96, "%a, %d %m %Y %H:%M:%S", utc);
 
-	String response(buf, 256);
-	write_formatted_value(response,
+	if (!data)
+		size = 0;
+
+	String response(hdr, 256);
+	response.reformat(
 		"{s}\r\n"
 		"Date: {s} GMT\r\n"
 		"Server: jackbendtsen.com.au\r\n"
 		"Content-Type: {s}\r\n"
 		"Content-Length: {d}\r\n\r\n",
-		status, date, content_type, size
+		status, datetime, content_type, size
 	);
 
 	write(fd, response.data(), response.size());
-	write(fd, data, size);
+
+	if (data)
+		write(fd, data, size);
 }
 
 int serve_page(int fd, char *name, int len) {
+	const char *hello =
+		"<html><body><h1>Hello!</h1><p>This is a test page</p></body></html>";
 
+	write_http_response(fd, "200 OK", "text/html", hello, strlen(hello));
+	return 0;
 }
-
-static File_Database db;
 
 #define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
-int serve_request(int fd) {
+int serve_request(int fd, File_Database& db) {
 	char buf[1024];
 
 	int sz = read(fd, buf, 1024);
 	if (sz <= 10) {
-		log_info("Request was too small (%d bytes)", sz);
+		log_info("Request was too small ({d} bytes)", sz);
 		return 1;
 	}
 
@@ -223,10 +224,10 @@ int serve_request(int fd) {
 			p++;
 
 		int len = p - name;
-		int file = lookup_file(pool, name, len);
+		int file = lookup_file(db, name, len);
 		if (file >= 0) {
-			File *f = &pool[file];
-			write_http_response(fd, "200 OK", f->type, f->buffer, f->size);
+			File *f = &db.files[file];
+			write_http_response(fd, "200 OK", f->type, (char*)f->buffer, f->size);
 		}
 		else {
 			serve_page(fd, name, len);
@@ -235,11 +236,16 @@ int serve_request(int fd) {
 	else { // home page
 		serve_page(fd, nullptr, 0);
 	}
+
+	return 0;
 }
 
 int main() {
 	init_logger();
-	db = make_file_db();
+
+	File_Database files;
+	if (make_file_db(files) != 0)
+		return 1;
 
 	int sock_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 
@@ -247,16 +253,21 @@ int main() {
 	auto addr_ptr = (struct sockaddr *)&addr;
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(portno);
+	addr.sin_port = htons(8080);
 
 	bind(sock_fd, addr_ptr, sizeof(addr));
 	listen(sock_fd, LISTEN_BACKLOG);
 
 	while (true) {
-		int addr_len = sizeof(addr);
+		socklen_t addr_len = sizeof(addr);
 		int fd = accept4(sock_fd, addr_ptr, &addr_len, SOCK_NONBLOCK);
 
-		serve_request(fd);
+		fd_set set;
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		select(fd + 1, &set, nullptr, nullptr, nullptr);
+
+		serve_request(fd, files);
 		close(fd);
 	}
 

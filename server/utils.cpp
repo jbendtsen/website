@@ -9,7 +9,7 @@ struct String_Format {
 	int right_sp;
 };
 
-static int write_formatted_value(String& str, int pos, String_Format& f, int spec_len) {
+static int write_formatted_value(String& str, int pos, String_Format& f, int spec_len, va_list args) {
 	int total = f.left_sp + f.size + f.right_sp;
 	str.resize(str.len + total - spec_len);
 
@@ -69,13 +69,16 @@ static int write_formatted_value(String& str, int pos, String_Format& f, int spe
 
 void write_formatted_string(String& str, const char *fmt, va_list args) {
 	str.resize(0);
-	if (!fmt)
-		return str;
+	if (!fmt) {
+		str.data()[0] = 0;
+		return;
+	}
 
 	int fmt_len = strlen(fmt);
 	str.resize(fmt_len + 1);
 
 	bool was_esc = false;
+	bool formatting = false;
 	int fmt_start = -1;
 	int pos = 0;
 	String_Format f = {0};
@@ -84,7 +87,7 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 		char c = fmt[i];
 		if (!was_esc && c == '}') {
 			if (formatting) {
-				pos = write_formatted_value(str, pos, f, i - fmt_start + 1);
+				pos = write_formatted_value(str, pos, f, i - fmt_start + 1, args);
 			}
 			formatting = false;
 		}
@@ -111,10 +114,6 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 					f.size *= 10;
 					f.size += c - '0';
 				}
-				else if (f.subparam == 1 && (f.type == 5 || f.type == 6)) {
-					f.frac_digits *= 10;
-					f.frac_digits += c - '0';
-				}
 			}
 			else if (f.param == 2 && c >= '0' && c <= '9') {
 				if (f.subparam == 1) {
@@ -140,6 +139,8 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 
 		was_esc = c == '\\' ? !was_esc : false;
 	}
+
+	str.data()[pos] = 0;
 }
 
 int String::resize(int sz) {
@@ -151,7 +152,7 @@ int String::resize(int sz) {
 		return len;
 	}
 
-	if (ptr & 1) {
+	if ((u64)ptr & 1ULL) {
 		if (sz > capacity) sz = capacity;
 		len = sz;
 		return len;
@@ -182,23 +183,29 @@ int String::resize(int sz) {
 void String::add(String& str) {
 	char *src_data = str.data();
 	int head = len;
-	resize(len + str.len + 1);
+	int new_size = resize(len + str.len + 1);
+	int to_add = new_size - head;
 
-	char *dst_data = data();
-	memcpy(dst_data + head, src_data, str.len);
-	dst_data[head + str.len] = 0;
+	if (to_add > 0) {
+		char *dst_data = data();
+		memcpy(dst_data + head, src_data, to_add);
+		dst_data[head + to_add] = 0;
+	}
 }
 
-void String::add(char *str, int size) {
+void String::add(const char *str, int size) {
 	size = size < 0 ? strlen(str) : size;
 	if (size == 0) return;
 
 	int head = len;
-	resize(len + size + 1);
+	int new_size = resize(len + size + 1);
+	int to_add = new_size - head;
 
-	char *dst_data = data();
-	memcpy(dst_data + head, str, size);
-	dst_data[head + size] = 0;
+	if (to_add > 0) {
+		char *dst_data = data();
+		memcpy(dst_data + head, str, to_add);
+		dst_data[head + to_add] = 0;
+	}
 }
 
 char *append_string(char *dst, char *src, int len) {

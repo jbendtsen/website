@@ -1,9 +1,22 @@
 #pragma once
 
 #include <stdarg.h>
+#include <string.h>
+
+#define SECS_UNTIL_RELOAD 60
 
 typedef unsigned char u8;
-typedef unsigned char u32;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+
+struct String;
+
+void write_formatted_string(String& str, const char *fmt, va_list args);
+char *append_string(char *dst, char *src, int len);
+
+void init_logger();
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
 
 struct File {
 	long last_reloaded;
@@ -16,8 +29,9 @@ struct File {
 };
 
 struct File_Database {
-	//int size;
+	int pool_size;
 	int n_files;
+	char *map_buffer;
 	char *label_pool;
 	char *fname_pool;
 	char *type_pool;
@@ -27,7 +41,7 @@ struct File_Database {
 // Can be used as a managed or unmanaged string.
 // If the string is unmanaged, the LSB of 'ptr' is set to 1.
 struct String {
-	static constexpr INITIAL_SIZE = 32;
+	static constexpr int INITIAL_SIZE = 32;
 
 	char *ptr;
 	int capacity;
@@ -41,17 +55,17 @@ struct String {
 		initial_buf[0] = 0;
 	}
 	String(char *buf, int size) {
-		ptr = buf | 1;
+		ptr = (char*)((u64)buf | 1ULL);
 		capacity = size;
 		len = 0;
 	}
 	~String() {
-		if (ptr && (ptr & 1) == 0)
+		if (ptr && ((u64)ptr & 1ULL) == 0)
 			delete[] ptr;
 	}
 
 	char *data() {
-		return ptr ? (ptr & ~1) : &initial_buf[0];
+		return ptr ? (char*)((u64)ptr & ~1ULL) : &initial_buf[0];
 	}
 	int size() {
 		return len;
@@ -61,15 +75,24 @@ struct String {
 	void add(String& str);
 	void add(const char *str, int len);
 
+	void assign(const char *str, int size) {
+		resize(0);
+		add(str, size);
+	}
+
+	void reformat(const char *fmt, ...) {
+		va_list args;
+		va_start(args, fmt);
+		write_formatted_string(*this, fmt, args);
+		va_end(args);
+	}
+
 	static String format(const char *fmt, ...) {
 		va_list args;
 		va_start(args, fmt);
 		String str;
-		make_formatted_string(str, fmt, args);
+		write_formatted_string(str, fmt, args);
 		va_end(args);
 		return str;
 	}
 };
-
-void write_formatted_string(String& str, const char *fmt, va_list args);
-char *append_string(char *dst, char *src, int len);
