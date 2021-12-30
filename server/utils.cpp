@@ -9,62 +9,79 @@ struct String_Format {
 	int right_sp;
 };
 
-static int write_formatted_value(String& str, int pos, String_Format& f, int spec_len, va_list args) {
-	int total = f.left_sp + f.size + f.right_sp;
-	str.resize(str.len + total - spec_len);
+static int fmt_write_string(char *param, String& str, int pos, String_Format& f, int spec_len) {
+	int elem_size = f.size;
+	int len = strlen(param);
+	if (!elem_size || elem_size > len)
+		elem_size = len;
 
+	str.resize(str.len + f.left_sp + elem_size + f.right_sp - spec_len);
 	char *p = &str.data()[pos];
-	pos += total - spec_len;
 
 	for (int i = 0; i < f.left_sp; i++)
 		*p++ = ' ';
 
-	if (f.type == 0) {
-		char *param = va_arg(args, char*);
-		memcpy(p, param, f.size);
-		p += f.size;
-	}
-	else if (f.type == 1 || f.type == 2 || f.type == 3 || f.type == 4) {
-		long param = 0;
-		if (f.type == 1 || f.type == 3)
-			param = va_arg(args, int);
-		else if (f.type == 2 || f.type == 4)
-			param = va_arg(args, long);
-
-		if (param == 0) {
-			for (int i = 0; i < f.size; i++)
-				*p++ = '0';
-		}
-		else {
-			int n_digits = f.size;
-			if (param < 0 && n_digits > 0) {
-				*p++ = '-';
-				n_digits--;
-				param = -param;
-			}
-
-			int idx = 0;
-			int base = f.type == 1 || f.type == 2 ? 10 : 16;
-
-			long n = param;
-			while (n && idx < n_digits) {
-				char d = (char)(n % base);
-				n /= base;
-
-				d += d < 10 ? '0' : 'a' - 10;
-
-				idx++;
-				p[n_digits - idx] = d;
-			}
-
-			p += n_digits;
-		}
-	}
+	memcpy(p, param, elem_size);
+	p += elem_size;
 
 	for (int i = 0; i < f.right_sp; i++)
 		*p++ = ' ';
 
-	return pos;
+	return f.left_sp + elem_size + f.right_sp;
+}
+
+static int fmt_write_number(long param, String& str, int pos, String_Format& f, int spec_len) {
+	int elem_size = f.size;
+	bool neg = param < 0;
+	if (neg)
+		param = -param;
+
+	char digits[24];
+	int n_digits = 0;
+
+	if (param == 0) {
+		digits[0] = '0';
+		n_digits = 1;
+	}
+	else {
+		int base = f.type == 1 || f.type == 2 ? 10 : 16;
+
+		long n = param;
+		while (n) {
+			char d = (char)(n % base);
+			n /= base;
+
+			d += d < 10 ? '0' : 'a' - 10;
+			digits[n_digits++] = d;
+		}
+	}
+
+	if (!elem_size)
+		elem_size = n_digits + (neg ? 1 : 0);
+
+	str.resize(str.len + f.left_sp + elem_size + f.right_sp - spec_len);
+	char *p = &str.data()[pos];
+
+	for (int i = 0; i < f.left_sp; i++)
+		*p++ = ' ';
+
+	int to_write = elem_size;
+	if (neg) {
+		*p++ = '-';
+		to_write--;
+	}
+
+	for (int i = n_digits; i < to_write; i++)
+		*p++ = '0';
+
+	int end = to_write < n_digits ? to_write : n_digits;
+	for (int i = end-1; i >= 0; i--)
+		*p++ = digits[i];
+
+	for (int i = 0; i < f.right_sp; i++)
+		*p++ = ' ';
+
+	return f.left_sp + elem_size + f.right_sp;
 }
 
 void write_formatted_string(String& str, const char *fmt, va_list args) {
@@ -85,11 +102,37 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 
 	for (int i = 0; i < fmt_len; i++) {
 		char c = fmt[i];
+		if (c == '\\') {
+			if (was_esc)
+				str.data()[pos++] = '\\';
+
+			was_esc = !was_esc;
+			continue;
+		}
+
 		if (!was_esc && c == '}') {
 			if (formatting) {
-				pos = write_formatted_value(str, pos, f, i - fmt_start + 1, args);
+				int written = 0;
+				int spec_len = i - fmt_start + 1;
+
+				if (f.type == 0) {
+					char *param = va_arg(args, char*);
+					written = fmt_write_string(param, str, pos, f, spec_len);
+				}
+				else if (f.type >= 1 && f.type <= 4) {
+					long param = 0;
+					if (f.type == 1 || f.type == 3)
+						param = va_arg(args, int);
+					else if (f.type == 2 || f.type == 4)
+						param = va_arg(args, long);
+
+					written = fmt_write_number(param, str, pos, f, spec_len);
+				}
+
+				pos += written;
 			}
 			formatting = false;
+			continue;
 		}
 
 		if (formatting) {
@@ -137,10 +180,11 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 			}
 		}
 
-		was_esc = c == '\\' ? !was_esc : false;
+		was_esc = false;
 	}
 
 	str.data()[pos] = 0;
+	str.resize(str.len - 1);
 }
 
 int String::resize(int sz) {

@@ -1,5 +1,7 @@
 #include <stdio.h>
+#include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -168,7 +170,7 @@ void write_http_response(int fd, const char *status, const char *content_type, c
 
 	String response(hdr, 256);
 	response.reformat(
-		"{s}\r\n"
+		"HTTP/1.1 {s}\r\n"
 		"Date: {s} GMT\r\n"
 		"Server: jackbendtsen.com.au\r\n"
 		"Content-Type: {s}\r\n"
@@ -184,7 +186,7 @@ void write_http_response(int fd, const char *status, const char *content_type, c
 
 int serve_page(int fd, char *name, int len) {
 	const char *hello =
-		"<html><body><h1>Hello!</h1><p>This is a test page</p></body></html>";
+		"<!DOCTYPE html><html><body><h1>Hello!</h1><p>This is a test page</p></body></html>";
 
 	write_http_response(fd, "200 OK", "text/html", hello, strlen(hello));
 	return 0;
@@ -196,9 +198,16 @@ int serve_request(int fd, File_Database& db) {
 	char buf[1024];
 
 	int sz = read(fd, buf, 1024);
+	if (sz < 0)
+		return 0;
+
 	if (sz <= 10) {
 		log_info("Request was too small ({d} bytes)", sz);
 		return 1;
+	}
+	else {
+		buf[sz-1] = 0;
+		puts(buf);
 	}
 
 	if (sz == 1024) {
@@ -247,7 +256,7 @@ int main() {
 	if (make_file_db(files) != 0)
 		return 1;
 
-	int sock_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	struct sockaddr_in addr;
 	auto addr_ptr = (struct sockaddr *)&addr;
@@ -260,12 +269,18 @@ int main() {
 
 	while (true) {
 		socklen_t addr_len = sizeof(addr);
-		int fd = accept4(sock_fd, addr_ptr, &addr_len, SOCK_NONBLOCK);
+		int fd = accept(sock_fd, addr_ptr, &addr_len);
 
 		fd_set set;
 		FD_ZERO(&set);
 		FD_SET(fd, &set);
 		select(fd + 1, &set, nullptr, nullptr, nullptr);
+
+		log_info("received request");
+
+		int flags = fcntl(fd, F_GETFL);
+		flags |= O_NONBLOCK;
+		fcntl(fd, F_SETFL, flags);
 
 		serve_request(fd, files);
 		close(fd);
