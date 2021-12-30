@@ -68,7 +68,7 @@ int make_file_db(File_Database& db) {
 		if (i == sz-1)
 			file_inc = 1;
 
-		db.n_files++;
+		db.n_files += file_inc;
 
 		if (c == '\n')
 			line_no++;
