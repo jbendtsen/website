@@ -14,10 +14,6 @@ struct String;
 void write_formatted_string(String& str, const char *fmt, va_list args);
 char *append_string(char *dst, char *src, int len);
 
-void init_logger();
-void log_info(const char *fmt, ...);
-void log_error(const char *fmt, ...);
-
 struct File {
 	long last_reloaded;
 	int flags;
@@ -96,3 +92,18 @@ struct String {
 		return str;
 	}
 };
+
+void init_logger();
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
+
+int lookup_file(File_Database& db, char *name, int len);
+void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
+
+void serve_404(File_Database& internal, int fd);
+void serve_home_page(File_Database& internal, int fd);
+void serve_blog_overview(File_Database& internal, int fd);
+void serve_specific_blog(File_Database& internal, int fd, char *name, int len);
+void serve_projects_overview(File_Database& internal, int fd);
+void serve_specific_project(File_Database& internal, int fd, char *name, int len);
+

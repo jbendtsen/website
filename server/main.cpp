@@ -11,10 +11,10 @@
 
 #define LISTEN_BACKLOG 10
 
-int make_file_db(File_Database& db) {
-	FILE *f = fopen("file-map.txt", "r");
+int make_file_db(File_Database& db, const char *fname) {
+	FILE *f = fopen(fname, "r");
 	if (!f) {
-		log_error("Could not open file-map.txt");
+		log_error("Could not open {s}", fname);
 		return 1;
 	}
 
@@ -187,17 +187,34 @@ void write_http_response(int fd, const char *status, const char *content_type, c
 		write(fd, data, size);
 }
 
-int serve_page(int fd, char *name, int len) {
-	const char *hello =
-		"<!DOCTYPE html><html><body><h1>Hello!</h1><p>This is a test page</p></body></html>";
-
-	write_http_response(fd, "200 OK", "text/html", hello, strlen(hello));
-	return 0;
+void serve_page(File_Database& internal, int fd, char *name, int len) {
+	if (!name || !len) {
+		serve_home_page(internal, fd);
+	}
+	else if (!memcmp(name, "blog", 4)) {
+		if (len > 5 && name[4] == '/') {
+			serve_specific_blog(internal, fd, name + 5, len - 5);
+		}
+		else if (len == 4) {
+			serve_blog_overview(internal, fd);
+		}
+	}
+	else if (!memcmp(name, "projects", 8)) {
+		if (len > 9 && name[8] == '/') {
+			serve_specific_project(internal, fd, name + 9, len - 9);
+		}
+		else if (len == 8) {
+			serve_projects_overview(internal, fd);
+		}
+	}
+	else {
+		serve_404(internal, fd);
+	}
 }
 
 #define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
-int serve_request(int fd, File_Database& db) {
+int serve_request(int fd, File_Database& global, File_Database& internal) {
 	char buf[1024];
 
 	int sz = read(fd, buf, 1024);
@@ -236,17 +253,17 @@ int serve_request(int fd, File_Database& db) {
 			p++;
 
 		int len = p - name;
-		int file = lookup_file(db, name, len);
+		int file = lookup_file(global, name, len);
 		if (file >= 0) {
-			File *f = &db.files[file];
+			File *f = &global.files[file];
 			write_http_response(fd, "200 OK", f->type, (char*)f->buffer, f->size);
 		}
 		else {
-			serve_page(fd, name, len);
+			serve_page(internal, fd, name, len);
 		}
 	}
 	else { // home page
-		serve_page(fd, nullptr, 0);
+		serve_home_page(internal, fd);
 	}
 
 	return 0;
@@ -255,9 +272,11 @@ int serve_request(int fd, File_Database& db) {
 int main() {
 	init_logger();
 
-	File_Database files;
-	if (make_file_db(files) != 0)
+	File_Database global, internal;
+	if (make_file_db(global, "global-files.txt") != 0)
 		return 1;
+	if (make_file_db(internal, "internal-files.txt") != 0)
+		return 2;
 
 	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -283,7 +302,7 @@ int main() {
 		flags |= O_NONBLOCK;
 		fcntl(fd, F_SETFL, flags);
 
-		serve_request(fd, files);
+		serve_request(fd, global, internal);
 		close(fd);
 	}
 
