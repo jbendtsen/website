@@ -186,10 +186,11 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 
 	auto dir = (struct linux_dirent64 *)list_dir_buffer;
 	int read_sz = getdents64(path_fd, dir, LIST_DIR_LEN);
-	if (read_sz <= 0)
-		return -1;
 
 	close(path_fd);
+
+	if (read_sz <= 0)
+		return -1;
 
 	int off = 0;
 	int n_files = 0;
@@ -216,7 +217,7 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 			offsets_file[n_files++] = name_off;
 		}
 
-		dir = (struct linux_dirent64 *)(list_dir_buffer + record_len);
+		dir = (struct linux_dirent64 *)((char*)dir + record_len);
 		off += record_len;
 	}
 
