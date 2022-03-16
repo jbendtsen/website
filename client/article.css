@@ -1,0 +1,52 @@
+p {
+	font-family: Noto Sans, Gadugi, sans;
+}
+h1, h2, h3 {
+	font-family: Noto Sans Mono, Source Code Pro, monospace;
+}
+.italic {
+	font-style: oblique;
+}
+.bold {
+	font-weight: bold;
+}
+.em {
+	font-style: oblique;
+	/*font-weight: bold;*/
+}
+.section {
+	display: block;
+	text-align: center;
+	font-weight: bold;
+	font-size: 125%;
+	margin: 1.5em;
+}
+.green {
+	color: green;
+}
+article {
+	margin: auto;
+	max-width: 88vw;
+	width: 50em;
+	color: #141414;
+}
+article div {
+	padding: 0.5em 0.5em 0.5em 2em;
+}
+h1 {
+	font-size: 200%;
+}
+h2 {
+	font-size: 150%;
+}
+.code, .code-java, .code-js {
+	white-space: pre-wrap;
+	font-family: monospace;
+	font-size: 110%;
+	background-color: #eee;
+}
+.quote {
+	font-style: oblique;
+	white-space: pre-wrap;
+	background-color: #eee;
+}

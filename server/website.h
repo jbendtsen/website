@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdarg.h>
-#include <string.h>
+#include <cstdarg>
+#include <cstring>
 
 #define SECS_UNTIL_RELOAD 60
 
@@ -10,13 +10,15 @@ typedef unsigned int u32;
 typedef unsigned long long u64;
 
 struct String;
+struct Expander;
+template<typename T> struct Vector;
 
 void write_formatted_string(String& str, const char *fmt, va_list args);
 char *append_string(char *dst, char *src, int len);
 
 struct File {
 	long last_reloaded;
-	int flags;
+	u32 flags;
 	int size;
 	u8 *buffer;
 	char *label;
@@ -32,6 +34,27 @@ struct File_Database {
 	char *fname_pool;
 	char *type_pool;
 	File *files;
+};
+
+// TODO: This design does not account for if upon refreshing the number of things in the directory has changed
+struct Directory {
+	char *name;
+	int first_dir;
+	int last_dir;
+	int first_file;
+	int last_file;
+};
+
+template<typename T, int size>
+struct Bucket {
+	T data[size];
+	Bucket<T, size> *next;
+};
+
+struct Filesystem {
+	Expander name_pool;
+	Bucket<Directory, 16> dirs;
+	Bucket<File, 16> files;
 };
 
 // Can be used as a managed or unmanaged string.
@@ -90,6 +113,110 @@ struct String {
 		write_formatted_string(str, fmt, args);
 		va_end(args);
 		return str;
+	}
+};
+
+struct Expander {
+	char *buf;
+	int cap;
+	int head;
+	int start;
+	int extra;
+
+	Expander() = default;
+	~Expander() {
+		if (buf) delete[] buf;
+	}
+
+	char *get(int *size) {
+		if (size) *size = head - start;
+		return buf + start;
+	}
+
+	void init(int capacity, bool use_terminators) {
+		cap = capacity;
+		buf = new char[cap]();
+		head = 0;
+		start = 0;
+		extra = (int)use_terminators;
+	}
+
+	void add_string(const char *add, int add_len) {
+		if (add && add_len <= 0)
+			add_len = strlen(add);
+
+		int growth = add_len + extra;
+
+		int h = head;
+		int c = cap;
+		if (c <= 0) c = 64;
+
+		while (h + growth > c)
+			c *= 2;
+
+		if (c != cap) {
+			char *new_str = new char[c];
+			memcpy(new_str, buf, cap);
+			memset(&new_str[cap], 0, c - cap);
+			delete[] buf;
+			buf = new_str;
+			cap = c;
+		}
+
+		if (add)
+			memcpy(&buf[head], add, add_len);
+
+		head += growth;
+	}
+};
+
+template<typename T>
+struct Vector {
+	T *data;
+	int cap;
+	int size;
+
+	Vector<T>() {
+		data = nullptr;
+		cap = 0;
+		size = 0;
+	}
+	~Vector<T>() {
+		if (data) delete[] data;
+	}
+
+	void resize(int new_size) {
+		if (new_size <= size)
+			return;
+
+		int old_cap = cap;
+		if (cap < 16)
+			cap = 16;
+		while (cap < new_size)
+			cap *= 2;
+
+		if (cap > old_cap) {
+			T *new_data = new T[cap];
+			if (data) {
+				memcpy(new_data, data, old_cap);
+				delete[] data;
+			}
+			data = new_data;
+		}
+
+		size = new_size;
+	}
+
+	void add(T t) {
+		int old_size = size;
+		resize(old_size + 1);
+		data[old_size] = t;
+	}
+
+	void add_multiple(T *array, int n) {
+		int old_size = size;
+		resize(old_size + n);
+		memcpy(&data[old_size], array, n * sizeof(T));
 	}
 };
 

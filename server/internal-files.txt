@@ -1,3 +1,0 @@
-style.css css/style.css text/css
-favicon.png /home/jack/Pictures/favicon.png image/png
-favicon.ico /home/jack/Pictures/favicon.png image/png

@@ -1,2 +1,4 @@
 jackbendtsen.com.au/tools
 jackbendtsen.com.au/tools/encryption
+
+Sort projects by date using "git show -s --format=%ci <commit>" for each project

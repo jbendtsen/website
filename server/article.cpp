@@ -1,49 +1,8 @@
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
+#include "website.h"
 
 #define N_CLOSING_TAGS 100
-
-struct String_Vec {
-	char *buf;
-	int cap;
-	int head;
-
-	String_Vec() = default;
-	~String_Vec() {
-		if (buf) delete[] buf;
-	}
-
-	void init(int capacity) {
-		cap = capacity;
-		buf = new char[cap];
-		head = 0;
-	}
-
-	void add_string(const char *add, int add_len) {
-		if (add && add_len <= 0)
-			add_len = strlen(add);
-
-		int h = head;
-		int c = cap;
-		if (c <= 0) c = 64;
-
-		while (h + add_len > c)
-			c *= 2;
-
-		if (c != cap) {
-			char *new_str = new char[c];
-			memcpy(new_str, buf, cap);
-			delete[] buf;
-			buf = new_str;
-			cap = c;
-		}
-
-		if (add)
-			memcpy(&buf[head], add, add_len);
-
-		head += add_len;
-	}
-};
 
 struct Space {
 	int offset;
@@ -60,8 +19,10 @@ const char *closing_tag_strings[] = {
 	"</h2>",
 };
 
-Space produce_article_html(String_Vec& article, char *input, int in_sz) {
+Space produce_article_html(Expander& article, char *input, int in_sz) {
 	Space title_space = {0};
+
+	article.add_string("<article>", 0);
 
 	int closing_tags[N_CLOSING_TAGS] = {0};
 	int tag_level = 0;
@@ -187,10 +148,26 @@ Space produce_article_html(String_Vec& article, char *input, int in_sz) {
 								inside_para = 0;
 
 								if (len_of_mode >= orig_len + 2) {
+									int class_len = len_of_mode - 6;
+									int short_len = class_len;
+									char *class_name = &s[6];
+									for (int j = 0; j < class_len; j++) {
+										if (class_name[j] == '-') {
+											short_len = j;
+											break;
+										}
+									}
+
 									article.add_string(tag_to_add, 0);
 									article.add_string(" class=\"", 0);
-									article.add_string(&s[6], len_of_mode - 6);
-									article.add_string("\">", 0);
+									article.add_string(class_name, short_len);
+
+									if (short_len != class_len) {
+										article.add_string(" ", 1);
+										article.add_string(class_name, class_len);
+									}
+
+									article.add_string("\">", 2);
 								}
 								else {
 									char gt = '>';
@@ -244,6 +221,8 @@ Space produce_article_html(String_Vec& article, char *input, int in_sz) {
 	for (int i = 0; i < div_levels; i++)
 		article.add_string("</div>", 0);
 
+	article.add_string("</article>", 0);
+
 	return title_space;
 }
 
@@ -274,17 +253,13 @@ int main(int argc, char **argv) {
 	input[in_sz + 1] = 0;
 	fclose(f);
 
-	int out_cap = in_sz * 2;
-	String_Vec article;
+	int out_cap = in_sz * 2 + 256;
+	Expander article;
 	article.init(out_cap);
 
-	Space title_space = produce_article_html(article, input, in_sz);
+	article.add_string(nullptr, 256);
 
-	String_Vec header;
-	header.init(256);
-	header.add_string("<!DOCTYPE html><html><head><title>", 0);
-	header.add_string(&input[title_space.offset], title_space.size);
-	header.add_string("</title><style>\n", 0);
+	article.add_string("</title><style>\n", 0);
 
 	f = fopen("article.css", "rb");
 	if (f) {
@@ -293,20 +268,32 @@ int main(int argc, char **argv) {
 		rewind(f);
 
 		if (css_sz > 0) {
-			header.add_string(nullptr, css_sz);;
-			fread(&header.buf[header.head - css_sz], 1, css_sz, f);
+			article.add_string(nullptr, css_sz);
+			fread(&article.buf[article.head - css_sz], 1, css_sz, f);
 		}
 
 		fclose(f);
 	}
 
-	header.add_string("\n</style></head><body>", 0);
+	article.add_string("\n</style></head><body>", 0);
+
+	Space title_space = produce_article_html(article, input, in_sz);
 
 	article.add_string("</body></html>", 0);
 
+	const char *html_lead_in = "<!DOCTYPE html><html><head><title>";
+	int lead_in_len = strlen(html_lead_in);
+	int title_len = title_space.size > 256-lead_in_len ? 256-lead_in_len : title_space.size;
+
+	article.start = 256 - title_len - lead_in_len;
+	int output_size;
+	char *output = article.get(&output_size);
+
+	memcpy(output + lead_in_len, &input[title_space.offset], title_len);
+	memcpy(output, html_lead_in, lead_in_len);
+
 	f = fopen(argv[2], "wb");
-	fwrite(header.buf, 1, header.head, f);
-	fwrite(article.buf, 1, article.head, f);
+	fwrite(output, 1, output_size, f);
 	fclose(f);
 
 	delete[] input;
