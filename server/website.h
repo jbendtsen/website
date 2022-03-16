@@ -5,7 +5,9 @@
 
 #define SECS_UNTIL_RELOAD 60
 
-#define LIST_DIR_LEN 0xc000
+#define LIST_DIR_MAX_FILES  (1 << 12)
+#define LIST_DIR_MAX_DIRS   (1 << 12)
+#define LIST_DIR_LEN        (1 << 20)
 
 typedef unsigned char u8;
 typedef unsigned int u32;
@@ -44,7 +46,7 @@ struct File_Database {
 struct FS_Directory {
 	int next;
 	u32 flags;
-	char *name;
+	int name_idx;
 	int first_dir;
 	int first_file;
 };
@@ -52,10 +54,10 @@ struct FS_Directory {
 struct FS_File {
 	int next;
 	u32 flags;
-	char *name;
-	long last_reloaded;
-	u8 *buffer;
+	int name_idx;
 	int size;
+	u8 *buffer;
+	long last_reloaded;
 };
 
 template<typename T, int size>
@@ -71,6 +73,7 @@ struct Filesystem {
 	Vector<FS_File> files;
 
 	void init_at(const char *initial_path, char *list_dir_buffer);
+	int init_directory(String& path, int parent_dir, int *offsets_file, int *offsets_dir, char *list_dir_buffer);
 };
 
 // Can be used as a managed or unmanaged string.
@@ -108,6 +111,17 @@ struct String {
 
 	char last() {
 		return data()[len-1];
+	}
+
+	void scrub(int len_from_end) {
+		if (len_from_end <= 0)
+			return;
+
+		int new_head = len - len_from_end;
+		if (new_head < 0) new_head = 0;
+
+		memset(data() + new_head, 0, len - new_head);
+		len = new_head;
 	}
 
 	int resize(int sz);
@@ -208,6 +222,8 @@ struct Vector {
 	~Vector<T>() {
 		if (data) delete[] data;
 	}
+
+	T& operator[](int idx) { return data[idx]; }
 
 	void resize(int new_size) {
 		if (new_size <= size)

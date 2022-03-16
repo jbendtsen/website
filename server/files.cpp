@@ -1,6 +1,7 @@
 #include "website.h"
 
-int File_Database::init(const char *fname) {
+int File_Database::init(const char *fname)
+{
 	FILE *f = fopen(fname, "r");
 	if (!f) {
 		log_error("Could not open {s}", fname);
@@ -91,7 +92,8 @@ int File_Database::init(const char *fname) {
 	return 0;
 }
 
-int File_Database::lookup_file(char *name, int len) {
+int File_Database::lookup_file(char *name, int len)
+{
 	char *p = db.label_pool;
 	int file = 0;
 	int off = 0;
@@ -149,32 +151,122 @@ int File_Database::lookup_file(char *name, int len) {
 	return file;
 }
 
-void Filesystem::init_at(const char *initial_path, char *list_dir_buffer) {
-	{
-		int len = initial_path ? strlen(initial_path) : 0;
-		if (len) {
-			starting_path.assign(path, len);
-			if (path.last() != '/')
-				path.add(' ');
-		}
-		else {
-			starting_path.assign("./", 2);
-		}
+int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
+{
+	name_pool.init(512, /*use_terminators=*/true);
+
+	int len = initial_path ? strlen(initial_path) : 0;
+	if (len) {
+		starting_path.assign(path, len);
+		if (path.last() != '/')
+			path.add(' ');
 	}
+	else {
+		starting_path.assign("./", 2);
+	}
+
+	int offsets_file[LIST_DIR_MAX_FILES];
+	int offsets_dir[LIST_DIR_MAX_DIRS];
+
+	dirs.add((FS_Directory){
+		.next = -1,
+		.flags = 0,
+		.name_idx = nullptr,
+		.first_dir = -1,
+		.first_file = -1
+	});
 
 	String path(starting_path);
-	int path_end = path.size();
+	return init_directory(path, 0, offsets_file, offsets_dir, list_dir_buffer);
+}
 
+int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, int *offsets_dir, char *list_dir_buffer)
+{
 	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
 
-	while (true) {
-		auto dir = (struct linux_dirent64 *)list_dir_buffer;
-		int len = getdents64(path_fd, dir, LIST_DIR_LEN);
-		if (len <= 0)
-			break;
+	auto dir = (struct linux_dirent64 *)list_dir_buffer;
+	int read_sz = getdents64(path_fd, dir, LIST_DIR_LEN);
+	if (read_sz <= 0)
+		return -1;
 
-		
+	close(path_fd);
+
+	int off = 0;
+	int n_files = 0;
+	int n_dirs = 0;
+
+	while (off < read_sz) {
+		int record_len = dir->d_reclen;
+		int name_off = (int)(&dir->d_name[0] - (char*)dir);
+
+		if (dir->d_type == DT_DIR) {
+			if (n_dirs >= LIST_DIR_MAX_DIRS) {
+				n_dirs++;
+				break;
+			}
+
+			offsets_dir[n_dirs++] = name_off;
+		}
+		else {
+			if (n_files >= LIST_DIR_MAX_FILES) {
+				n_files++;
+				break;
+			}
+
+			offsets_file[n_files++] = name_off;
+		}
+
+		dir = (struct linux_dirent64 *)(list_dir_buffer + record_len);
+		off += record_len;
 	}
 
-	close(fd);
+	auto sort_func = [](const void *a, const void *b, void *param) {
+		return strcmp((char*)param + *(int*)a, (char*)param + *(int*)b);
+	};
+
+	if (n_dirs > 0) {
+		qsort_r(offsets_dir, n_dirs, sizeof(int), sort_func, list_dir_buffer);
+		dirs[parent_dir].first_dir = dirs.size;
+	}
+	if (n_files > 0) {
+		qsort_r(offsets_file, n_files, sizeof(int), sort_func, list_dir_buffer);
+		dirs[parent_dir].first_file = files.size;
+	}
+
+	for (int i = 0; i < n_dirs; i++) {
+		int name_idx = name_pool.head;
+		name_pool.add_string(&list_dir_buffer[offsets_dir[i]], 0);
+
+		dirs.add((FS_Directory){
+			.next = i < n_dirs-1 ? i+1 : -1,
+			.flags = 0,
+			.name_idx = name_idx,
+			.first_dir = -1,
+			.first_file = -1
+		});
+	}
+	for (int i = 0; i < n_files; i++) {
+		int name_idx = name_pool.head;
+		name_pool.add_string(&list_dir_buffer[offsets_file[i]], 0);
+
+		files.add((FS_File){
+			.next = i < n_files-1 ? i+1 : -1,
+			.flags = 0,
+			.name_idx = name_idx,
+			.size = -1,
+			.buffer = nullptr,
+			.last_reloaded = 0
+		});
+	}
+
+	for (int i = dirs.size - n_dirs; i < dirs.size; i++) {
+		char *name = &name_pool.buf[dirs[i]];
+		int len = strlen(name);
+		path.add(name, len);
+		path.add('/');
+
+		init_directory(path, i, offsets_file, offsets_dir, list_dir_buffer);
+
+		path.scrub(len + 1);
+	}
 }

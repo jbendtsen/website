@@ -265,5 +265,3 @@ char *append_string(char *dst, char *src, int len) {
 	*dst = 0;
 	return dst;
 }
-
-
