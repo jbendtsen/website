@@ -12,7 +12,7 @@ int File_Database::init(const char *fname) {
 	rewind(f);
 
 	if (sz <= 0) {
-		log_error("Failed to read from file-map.txt");
+		log_error("Failed to read from {s}", fname);
 		return 2;
 	}
 
@@ -45,7 +45,7 @@ int File_Database::init(const char *fname) {
 				pool++;
 				if (pool >= 3) {
 					pool = 0;
-					log_info("file-map.txt: line {d} contains too many parameters, wrapping around", line_no);
+					log_info("{s}: line {d} contains too many parameters, wrapping around", fname, line_no);
 				}
 			}
 			else if (c == '\r' || c == '\n') {
@@ -147,4 +147,34 @@ int File_Database::lookup_file(char *name, int len) {
 	}
 
 	return file;
+}
+
+void Filesystem::init_at(const char *initial_path, char *list_dir_buffer) {
+	{
+		int len = initial_path ? strlen(initial_path) : 0;
+		if (len) {
+			starting_path.assign(path, len);
+			if (path.last() != '/')
+				path.add(' ');
+		}
+		else {
+			starting_path.assign("./", 2);
+		}
+	}
+
+	String path(starting_path);
+	int path_end = path.size();
+
+	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
+
+	while (true) {
+		auto dir = (struct linux_dirent64 *)list_dir_buffer;
+		int len = getdents64(path_fd, dir, LIST_DIR_LEN);
+		if (len <= 0)
+			break;
+
+		
+	}
+
+	close(fd);
 }

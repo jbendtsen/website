@@ -5,6 +5,8 @@
 
 #define SECS_UNTIL_RELOAD 60
 
+#define LIST_DIR_LEN 0xc000
+
 typedef unsigned char u8;
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -16,7 +18,7 @@ template<typename T> struct Vector;
 void write_formatted_string(String& str, const char *fmt, va_list args);
 char *append_string(char *dst, char *src, int len);
 
-struct File {
+struct DB_File {
 	long last_reloaded;
 	u32 flags;
 	int size;
@@ -24,6 +26,9 @@ struct File {
 	char *label;
 	char *type;
 	char *fname;
+
+	int init(const char *fname);
+	int lookup_file(char *name, int len);
 };
 
 struct File_Database {
@@ -33,16 +38,24 @@ struct File_Database {
 	char *label_pool;
 	char *fname_pool;
 	char *type_pool;
-	File *files;
+	DB_File *files;
 };
 
-// TODO: This design does not account for if upon refreshing the number of things in the directory has changed
-struct Directory {
+struct FS_Directory {
+	int next;
+	u32 flags;
 	char *name;
 	int first_dir;
-	int last_dir;
 	int first_file;
-	int last_file;
+};
+
+struct FS_File {
+	int next;
+	u32 flags;
+	char *name;
+	long last_reloaded;
+	u8 *buffer;
+	int size;
 };
 
 template<typename T, int size>
@@ -52,9 +65,12 @@ struct Bucket {
 };
 
 struct Filesystem {
+	String starting_path;
 	Expander name_pool;
-	Bucket<Directory, 16> dirs;
-	Bucket<File, 16> files;
+	Vector<FS_Directory> dirs;
+	Vector<FS_File> files;
+
+	void init_at(const char *initial_path, char *list_dir_buffer);
 };
 
 // Can be used as a managed or unmanaged string.
@@ -90,9 +106,17 @@ struct String {
 		return len;
 	}
 
+	char last() {
+		return data()[len-1];
+	}
+
 	int resize(int sz);
 	void add(String& str);
 	void add(const char *str, int len);
+
+	char add(char c) {
+		add(&c, 1);
+	}
 
 	void assign(const char *str, int size) {
 		resize(0);
