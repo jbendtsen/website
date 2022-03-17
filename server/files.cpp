@@ -1,4 +1,18 @@
+#include <algorithm>
+#include <cstdio>
+#include <time.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <unistd.h>
 #include "website.h"
+
+struct linux_dirent64 {
+	ino64_t        d_ino;    /* 64-bit inode number */
+	off64_t        d_off;    /* 64-bit offset to next structure */
+	unsigned short d_reclen; /* Size of this dirent */
+	unsigned char  d_type;   /* File type */
+	char           d_name[]; /* Filename (null-terminated) */
+};
 
 int File_Database::init(const char *fname)
 {
@@ -17,14 +31,14 @@ int File_Database::init(const char *fname)
 		return 2;
 	}
 
-	db.pool_size = sz + 1;
-	db.map_buffer = new char[db.pool_size * 4]();
-	db.label_pool = &db.map_buffer[db.pool_size];
-	db.fname_pool = &db.map_buffer[db.pool_size * 2];
-	db.type_pool  = &db.map_buffer[db.pool_size * 3];
-	db.n_files = 0;
+	pool_size = sz + 1;
+	map_buffer = new char[pool_size * 4]();
+	label_pool = &map_buffer[pool_size];
+	fname_pool = &map_buffer[pool_size * 2];
+	type_pool  = &map_buffer[pool_size * 3];
+	n_files = 0;
 
-	fread(db.map_buffer, 1, sz, f);
+	fread(map_buffer, 1, sz, f);
 	fclose(f);
 
 	int line_no = 0;
@@ -33,10 +47,10 @@ int File_Database::init(const char *fname)
 	int offsets[] = {0, 0, 0};
 
 	for (int i = 0; i < sz; i++) {
-		char c = db.map_buffer[i];
+		char c = map_buffer[i];
 		char character = c != ' ' && c != '\t' && c != '\n' && c != '\r' ? c : 0;
 
-		db.map_buffer[db.pool_size * (pool + 1) + offsets[pool]] = character;
+		map_buffer[pool_size * (pool + 1) + offsets[pool]] = character;
 		offsets[pool]++;
 
 		int file_inc = 0;
@@ -58,34 +72,34 @@ int File_Database::init(const char *fname)
 		if (i == sz-1)
 			file_inc = 1;
 
-		db.n_files += file_inc;
+		n_files += file_inc;
 
 		if (c == '\n')
 			line_no++;
 	}
 
-	db.files = new File[db.n_files];
-	memset(db.files, 0, db.n_files * sizeof(File));
+	files = new DB_File[n_files];
+	memset(files, 0, n_files * sizeof(DB_File));
 
 	{
 		int off = 0;
-		for (int i = 0; i < db.n_files; i++) {
-			db.files[i].label = &db.label_pool[off];
-			off += strlen(db.files[i].label) + 1;
+		for (int i = 0; i < n_files; i++) {
+			files[i].label = &label_pool[off];
+			off += strlen(files[i].label) + 1;
 		}
 	}
 	{
 		int off = 0;
-		for (int i = 0; i < db.n_files; i++) {
-			db.files[i].fname = &db.fname_pool[off];
-			off += strlen(db.files[i].fname) + 1;
+		for (int i = 0; i < n_files; i++) {
+			files[i].fname = &fname_pool[off];
+			off += strlen(files[i].fname) + 1;
 		}
 	}
 	{
 		int off = 0;
-		for (int i = 0; i < db.n_files; i++) {
-			db.files[i].type = &db.type_pool[off];
-			off += strlen(db.files[i].type) + 1;
+		for (int i = 0; i < n_files; i++) {
+			files[i].type = &type_pool[off];
+			off += strlen(files[i].type) + 1;
 		}
 	}
 
@@ -94,12 +108,12 @@ int File_Database::init(const char *fname)
 
 int File_Database::lookup_file(char *name, int len)
 {
-	char *p = db.label_pool;
+	char *p = label_pool;
 	int file = 0;
 	int off = 0;
 	int matches = 0;
 
-	while (file < db.n_files) {
+	while (file < n_files) {
 		char c = *p++;
 		if (c == 0) {
 			if (off == len && matches == len)
@@ -116,13 +130,13 @@ int File_Database::lookup_file(char *name, int len)
 		off++;
 	}
 
-	if (file >= db.n_files)
+	if (file >= n_files)
 		return -1;
 
 	struct timespec spec;
 	long t = clock_gettime(CLOCK_BOOTTIME, &spec);
 
-	File *f = &db.files[file];
+	DB_File *f = &files[file];
 	long threshold = f->last_reloaded + SECS_UNTIL_RELOAD;
 
 	if (!f->buffer || t >= threshold || t < threshold - (1LL << 63)) {
@@ -156,22 +170,23 @@ int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
 	name_pool.init(512, /*use_terminators=*/true);
 
 	int len = initial_path ? strlen(initial_path) : 0;
+
 	if (len) {
-		starting_path.assign(path, len);
-		if (path.last() != '/')
-			path.add(' ');
+		starting_path.assign(initial_path, len);
+		if (starting_path.last() != '/')
+			starting_path.add('/');
 	}
 	else {
 		starting_path.assign("./", 2);
 	}
 
-	int offsets_file[LIST_DIR_MAX_FILES];
-	int offsets_dir[LIST_DIR_MAX_DIRS];
+	char *offsets_file[LIST_DIR_MAX_FILES];
+	char *offsets_dir[LIST_DIR_MAX_DIRS];
 
 	dirs.add((FS_Directory){
 		.next = -1,
 		.flags = 0,
-		.name_idx = nullptr,
+		.name_idx = -1,
 		.first_dir = -1,
 		.first_file = -1
 	});
@@ -180,17 +195,19 @@ int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
 	return init_directory(path, 0, offsets_file, offsets_dir, list_dir_buffer);
 }
 
-int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, int *offsets_dir, char *list_dir_buffer)
+int Filesystem::init_directory(String& path, int parent_dir, char **offsets_file, char **offsets_dir, char *list_dir_buffer)
 {
 	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
+	if (path_fd < 0)
+		return -1;
 
-	auto dir = (struct linux_dirent64 *)list_dir_buffer;
+	auto dir = (linux_dirent64*)list_dir_buffer;
 	int read_sz = getdents64(path_fd, dir, LIST_DIR_LEN);
 
 	close(path_fd);
 
 	if (read_sz <= 0)
-		return -1;
+		return -2;
 
 	int off = 0;
 	int n_files = 0;
@@ -198,7 +215,13 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 
 	while (off < read_sz) {
 		int record_len = dir->d_reclen;
-		int name_off = (int)(&dir->d_name[0] - (char*)dir);
+		char *name = dir->d_name;
+
+		if (name[0] == '.' && (name[1] == 0 || (name[1] == '.' && name[2] == 0))) {
+			dir = (linux_dirent64*)((char*)dir + record_len);
+			off += record_len;
+			continue;
+		}
 
 		if (dir->d_type == DT_DIR) {
 			if (n_dirs >= LIST_DIR_MAX_DIRS) {
@@ -206,7 +229,7 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 				break;
 			}
 
-			offsets_dir[n_dirs++] = name_off;
+			offsets_dir[n_dirs++] = name;
 		}
 		else {
 			if (n_files >= LIST_DIR_MAX_FILES) {
@@ -214,32 +237,40 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 				break;
 			}
 
-			offsets_file[n_files++] = name_off;
+			offsets_file[n_files++] = name;
 		}
 
-		dir = (struct linux_dirent64 *)((char*)dir + record_len);
+		dir = (linux_dirent64*)((char*)dir + record_len);
 		off += record_len;
 	}
 
-	auto sort_func = [](const void *a, const void *b, void *param) {
-		return strcmp((char*)param + *(int*)a, (char*)param + *(int*)b);
+	auto sort_names_func = [](char *a, char *b) {
+		return strcmp(a, b) < 0;
 	};
 
 	if (n_dirs > 0) {
-		qsort_r(offsets_dir, n_dirs, sizeof(int), sort_func, list_dir_buffer);
+		std::sort(offsets_dir, offsets_dir + n_dirs, sort_names_func);
 		dirs[parent_dir].first_dir = dirs.size;
 	}
+	else {
+		dirs[parent_dir].first_dir = -1;
+	}
+
 	if (n_files > 0) {
-		qsort_r(offsets_file, n_files, sizeof(int), sort_func, list_dir_buffer);
+		std::sort(offsets_file, offsets_file + n_files, sort_names_func);
 		dirs[parent_dir].first_file = files.size;
+	}
+	else {
+		dirs[parent_dir].first_file = -1;
 	}
 
 	for (int i = 0; i < n_dirs; i++) {
 		int name_idx = name_pool.head;
-		name_pool.add_string(&list_dir_buffer[offsets_dir[i]], 0);
+		name_pool.add_string(offsets_dir[i], 0);
 
+		int next = i < n_dirs-1 ? dirs.size+1 : -1;
 		dirs.add((FS_Directory){
-			.next = i < n_dirs-1 ? i+1 : -1,
+			.next = next,
 			.flags = 0,
 			.name_idx = name_idx,
 			.first_dir = -1,
@@ -248,10 +279,11 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 	}
 	for (int i = 0; i < n_files; i++) {
 		int name_idx = name_pool.head;
-		name_pool.add_string(&list_dir_buffer[offsets_file[i]], 0);
+		name_pool.add_string(offsets_file[i], 0);
 
+		int next = i < n_files-1 ? files.size+1 : -1;
 		files.add((FS_File){
-			.next = i < n_files-1 ? i+1 : -1,
+			.next = next,
 			.flags = 0,
 			.name_idx = name_idx,
 			.size = -1,
@@ -260,8 +292,12 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 		});
 	}
 
-	for (int i = dirs.size - n_dirs; i < dirs.size; i++) {
-		char *name = &name_pool.buf[dirs[i]];
+	int end = dirs.size;
+	int start = end - n_dirs;
+
+	for (int i = start; i < end; i++) {
+		int n = dirs[i].name_idx;
+		char *name = &name_pool.buf[n];
 		int len = strlen(name);
 		path.add(name, len);
 		path.add('/');
@@ -270,4 +306,6 @@ int Filesystem::init_directory(String& path, int parent_dir, int *offsets_file, 
 
 		path.scrub(len + 1);
 	}
+
+	return 0;
 }

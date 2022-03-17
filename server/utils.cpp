@@ -202,10 +202,12 @@ int String::resize(int sz) {
 		return len;
 	}
 
+	int actual_sz = sz + 1;
+
 	int old_cap = capacity;
 	if (capacity < INITIAL_SIZE)
 		capacity = INITIAL_SIZE;
-	while (sz > capacity)
+	while (actual_sz > capacity)
 		capacity *= 2;
 
 	char *buf = new char[capacity];
@@ -219,6 +221,7 @@ int String::resize(int sz) {
 		}
 	}
 
+	buf[sz] = 0;
 	ptr = buf;
 	len = sz;
 	return len;
@@ -227,7 +230,7 @@ int String::resize(int sz) {
 void String::add(String& str) {
 	char *src_data = str.data();
 	int head = len;
-	int new_size = resize(len + str.len + 1);
+	int new_size = resize(len + str.len);
 	int to_add = new_size - head;
 
 	if (to_add > 0) {
@@ -242,7 +245,7 @@ void String::add(const char *str, int size) {
 	if (size == 0) return;
 
 	int head = len;
-	int new_size = resize(len + size + 1);
+	int new_size = resize(len + size);
 	int to_add = new_size - head;
 
 	if (to_add > 0) {

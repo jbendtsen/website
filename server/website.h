@@ -14,70 +14,17 @@ typedef unsigned int u32;
 typedef unsigned long long u64;
 
 struct String;
-struct Expander;
-template<typename T> struct Vector;
+
+void init_logger();
+void log_info(const char *fmt, ...);
+void log_error(const char *fmt, ...);
 
 void write_formatted_string(String& str, const char *fmt, va_list args);
 char *append_string(char *dst, char *src, int len);
 
-struct DB_File {
-	long last_reloaded;
-	u32 flags;
-	int size;
-	u8 *buffer;
-	char *label;
-	char *type;
-	char *fname;
-
-	int init(const char *fname);
-	int lookup_file(char *name, int len);
-};
-
-struct File_Database {
-	int pool_size;
-	int n_files;
-	char *map_buffer;
-	char *label_pool;
-	char *fname_pool;
-	char *type_pool;
-	DB_File *files;
-};
-
-struct FS_Directory {
-	int next;
-	u32 flags;
-	int name_idx;
-	int first_dir;
-	int first_file;
-};
-
-struct FS_File {
-	int next;
-	u32 flags;
-	int name_idx;
-	int size;
-	u8 *buffer;
-	long last_reloaded;
-};
-
-template<typename T, int size>
-struct Bucket {
-	T data[size];
-	Bucket<T, size> *next;
-};
-
-struct Filesystem {
-	String starting_path;
-	Expander name_pool;
-	Vector<FS_Directory> dirs;
-	Vector<FS_File> files;
-
-	void init_at(const char *initial_path, char *list_dir_buffer);
-	int init_directory(String& path, int parent_dir, int *offsets_file, int *offsets_dir, char *list_dir_buffer);
-};
-
 // Can be used as a managed or unmanaged string.
 // If the string is unmanaged, the LSB of 'ptr' is set to 1.
+// This class *must* have access to at least len+1 bytes of memory.
 struct String {
 	static constexpr int INITIAL_SIZE = 32;
 
@@ -96,6 +43,12 @@ struct String {
 		ptr = (char*)((u64)buf | 1ULL);
 		capacity = size;
 		len = 0;
+	}
+	String(String& other) {
+		capacity = other.capacity;
+		len = other.len;
+		ptr = other.ptr ? new char[other.capacity] : nullptr;
+		memcpy(data(), other.data(), len + 1);
 	}
 	~String() {
 		if (ptr && ((u64)ptr & 1ULL) == 0)
@@ -128,7 +81,7 @@ struct String {
 	void add(String& str);
 	void add(const char *str, int len);
 
-	char add(char c) {
+	void add(char c) {
 		add(&c, 1);
 	}
 
@@ -192,7 +145,7 @@ struct Expander {
 		while (h + growth > c)
 			c *= 2;
 
-		if (c != cap) {
+		if (c > cap) {
 			char *new_str = new char[c];
 			memcpy(new_str, buf, cap);
 			memset(&new_str[cap], 0, c - cap);
@@ -232,13 +185,13 @@ struct Vector {
 		int old_cap = cap;
 		if (cap < 16)
 			cap = 16;
-		while (cap < new_size)
+		while (new_size > cap)
 			cap *= 2;
 
 		if (cap > old_cap) {
 			T *new_data = new T[cap];
 			if (data) {
-				memcpy(new_data, data, old_cap);
+				if (old_cap > 0) memcpy(new_data, data, old_cap * sizeof(T));
 				delete[] data;
 			}
 			data = new_data;
@@ -260,9 +213,61 @@ struct Vector {
 	}
 };
 
-void init_logger();
-void log_info(const char *fmt, ...);
-void log_error(const char *fmt, ...);
+struct DB_File {
+	long last_reloaded;
+	u32 flags;
+	int size;
+	u8 *buffer;
+	char *label;
+	char *type;
+	char *fname;
+};
+
+struct File_Database {
+	int pool_size;
+	int n_files;
+	char *map_buffer;
+	char *label_pool;
+	char *fname_pool;
+	char *type_pool;
+	DB_File *files;
+
+	int init(const char *fname);
+	int lookup_file(char *name, int len);
+};
+
+struct FS_Directory {
+	int next;
+	u32 flags;
+	int name_idx;
+	int first_dir;
+	int first_file;
+};
+
+struct FS_File {
+	int next;
+	u32 flags;
+	int name_idx;
+	int size;
+	u8 *buffer;
+	long last_reloaded;
+};
+
+template<typename T, int size>
+struct Bucket {
+	T data[size];
+	Bucket<T, size> *next;
+};
+
+struct Filesystem {
+	String starting_path;
+	Expander name_pool;
+	Vector<FS_Directory> dirs;
+	Vector<FS_File> files;
+
+	int init_at(const char *initial_path, char *list_dir_buffer);
+	int init_directory(String& path, int parent_dir, char **offsets_file, char **offsets_dir, char *list_dir_buffer);
+};
 
 int lookup_file(File_Database& db, char *name, int len);
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
