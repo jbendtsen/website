@@ -26,7 +26,7 @@ h1, h2, h3 {
 }
 article {
 	margin: auto;
-	max-width: 88vw;
+	max-width: 90%;
 	width: 50em;
 	color: #141414;
 }

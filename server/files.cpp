@@ -269,6 +269,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 			n = &n_dirs;
 		}
 
+		// TODO: do something when this happens
 		if (*n >= LIST_DIR_MAX_FILES) {
 			*n += 1;
 			break;

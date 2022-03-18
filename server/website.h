@@ -8,9 +8,16 @@
 #define LIST_DIR_MAX_FILES  (1 << 12)
 #define LIST_DIR_LEN        (1 << 20)
 
+#define N_CLOSING_TAGS 100
+
 typedef unsigned char u8;
 typedef unsigned int u32;
 typedef unsigned long long u64;
+
+struct Space {
+	int offset;
+	int size;
+};
 
 struct String;
 
@@ -343,6 +350,8 @@ struct Filesystem {
 
 int lookup_file(File_Database& db, char *name, int len);
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
+
+Space produce_article_html(Expander& article, char *input, int in_sz, int line_limit);
 
 void serve_404(File_Database& internal, int fd);
 void serve_home_page(File_Database& internal, int fd);

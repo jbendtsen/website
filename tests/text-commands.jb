@@ -1,0 +1,27 @@
+|title[ This is an example of a text document |title]
+|subtitle[ And this is the sub-title |subtitle]
+
+Here's where the meat of the blog goes. If square brackets or pipes need to be displayed, two can be used in a row, eg. [[like this]] ||or this||.
+A single newline is ignored, however two newlines next to each other signify a paragraph break.
+
+This means that this is the start of the second paragraph.
+The way styles are incorporated is by specifying when a class is added and when it gets removed,
+eg. [italic[italics, [bold[bold (with italics]italic] and without)]bold], [green[ font colours]green].
+Code would be quoted as [code-js[var a = 42;]code-js] or
+
+|block code-js[
+var a = 42;
+if (b < 55) {
+	console.log(c);
+}
+
+// here's a comment that came after an empty line
+|block]
+
+Which would use ||block code-js||. Commands that use pipe characters don't have an ending tag,
+and if the command is [c[block]c], then the class stops being applied after the end of the paragraph.
+This means a code block can contain square brackets as well as pipe characters that don't need to be escaped,
+however an inline code snippet must have its square brackets escaped.
+For a syntax-less code snippet/block, [[code[[ or [[c[[ can be used, else a language can be specified with [[code-<lang>[[, eg. [[code-cpp[[.
+
+Any command that contains a number as the second parameter is interpreted as being a block, so a <div> is inserted instead of a <span>.
