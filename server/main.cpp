@@ -11,7 +11,7 @@
 
 #define LISTEN_BACKLOG 10
 
-void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size) {
+void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size) {
 	char hdr[256];
 	char datetime[96];
 
@@ -32,43 +32,43 @@ void write_http_response(int fd, const char *status, const char *content_type, c
 		status, datetime, content_type, size
 	);
 
-	write(fd, response.data(), response.size());
+	write(request_fd, response.data(), response.size());
 
 	if (data)
-		write(fd, data, size);
+		write(request_fd, data, size);
 }
 
-void serve_page(File_Database& internal, int fd, char *name, int len) {
+void serve_page(Filesystem& fs, int request_fd, char *name, int len) {
 	if (!name || !len) {
-		serve_home_page(internal, fd);
+		serve_home_page(fs, request_fd);
 	}
 	else if (!memcmp(name, "blog", 4)) {
 		if (len > 5 && name[4] == '/') {
-			serve_specific_blog(internal, fd, name + 5, len - 5);
+			serve_specific_blog(fs, request_fd, name + 5, len - 5);
 		}
 		else if (len == 4) {
-			serve_blog_overview(internal, fd);
+			serve_blog_overview(fs, request_fd);
 		}
 	}
 	else if (!memcmp(name, "projects", 8)) {
 		if (len > 9 && name[8] == '/') {
-			serve_specific_project(internal, fd, name + 9, len - 9);
+			serve_specific_project(fs, request_fd, name + 9, len - 9);
 		}
 		else if (len == 8) {
-			serve_projects_overview(internal, fd);
+			serve_projects_overview(fs, request_fd);
 		}
 	}
 	else {
-		serve_404(internal, fd);
+		serve_404(fs, request_fd);
 	}
 }
 
 #define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
-int serve_request(int fd, File_Database& global, File_Database& internal) {
+int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 	char buf[1024];
 
-	int sz = read(fd, buf, 1024);
+	int sz = read(request_fd, buf, 1024);
 	if (sz < 0)
 		return 0;
 
@@ -83,7 +83,7 @@ int serve_request(int fd, File_Database& global, File_Database& internal) {
 
 	if (sz == 1024) {
 		char fluff[256];
-		while (read(fd, fluff, 256) == 256);
+		while (read(request_fd, fluff, 256) == 256);
 	}
 
 	char *end = &buf[sz-1];
@@ -107,14 +107,14 @@ int serve_request(int fd, File_Database& global, File_Database& internal) {
 		int file = lookup_file(global, name, len);
 		if (file >= 0) {
 			File *f = &global.files[file];
-			write_http_response(fd, "200 OK", f->type, (char*)f->buffer, f->size);
+			write_http_response(request_fd, "200 OK", f->type, (char*)f->buffer, f->size);
 		}
 		else {
-			serve_page(internal, fd, name, len);
+			serve_page(fs, request_fd, name, len);
 		}
 	}
 	else { // home page
-		serve_home_page(internal, fd);
+		serve_home_page(fs, request_fd);
 	}
 
 	return 0;
@@ -126,6 +126,11 @@ int main() {
 	File_Database global;
 	if (make_file_db(global, "global-files.txt") != 0)
 		return 1;
+
+	char *list_dir_buffer = new char[LIST_DIR_LEN];
+
+	Filesystem fs;
+	fs.init_at(".", list_dir_buffer);
 
 	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -151,7 +156,7 @@ int main() {
 		flags |= O_NONBLOCK;
 		fcntl(fd, F_SETFL, flags);
 
-		serve_request(fd, global, internal);
+		serve_request(fd, global, fs);
 		close(fd);
 	}
 

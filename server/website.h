@@ -6,7 +6,6 @@
 #define SECS_UNTIL_RELOAD 60
 
 #define LIST_DIR_MAX_FILES  (1 << 12)
-#define LIST_DIR_MAX_DIRS   (1 << 12)
 #define LIST_DIR_LEN        (1 << 20)
 
 typedef unsigned char u8;
@@ -124,15 +123,22 @@ struct Expander {
 		return buf + start;
 	}
 
-	void init(int capacity, bool use_terminators) {
+	char *at(int offset) {
+		return buf + offset;
+	}
+
+	void init(int capacity, bool use_terminators, int prepend_space) {
 		cap = capacity;
+		if (prepend_space > 0 && cap <= prepend_space)
+			cap += prepend_space;
+
 		buf = new char[cap]();
-		head = 0;
-		start = 0;
+		head = prepend_space;
+		start = prepend_space;
 		extra = (int)use_terminators;
 	}
 
-	void add_string(const char *add, int add_len) {
+	int add_string(const char *add, int add_len) {
 		if (add && add_len <= 0)
 			add_len = strlen(add);
 
@@ -158,6 +164,43 @@ struct Expander {
 			memcpy(&buf[head], add, add_len);
 
 		head += growth;
+		return add_len;
+	}
+
+	int prepend_string_trunc(const char *add, int add_len) {
+		if (start <= 0)
+			return 0;
+		if (add && add_len <= 0)
+			add_len = strlen(add);
+		if (add_len > start - extra)
+			add_len = start - extra;
+
+		start -= add_len + extra;
+		memcpy(buf + start, add, add_len);
+
+		for (int i = 0; i < extra; i++)
+			buf[start + add_len + i] = 0;
+
+		return add_len;
+	}
+
+	int prepend_string_overlap(const char *add, int add_len) {
+		if (add && add_len <= 0)
+			add_len = strlen(add);
+
+		int pos = start - add_len - extra;
+		pos = pos > 0 ? pos : 0;
+
+		if (add_len > cap - pos)
+			add_len = cap - pos;
+
+		start = pos;
+		memcpy(buf + start, add, add_len);
+
+		for (int i = 0; i < extra; i++)
+			buf[start + add_len + i] = 0;
+
+		return add_len;
 	}
 };
 
@@ -236,21 +279,51 @@ struct File_Database {
 	int lookup_file(char *name, int len);
 };
 
+union FS_Next {
+	struct {
+		int alpha;
+		int modified;
+		int created;
+	};
+	int array[3];
+};
+
 struct FS_Directory {
-	int next;
+	FS_Next next;
 	u32 flags;
 	int name_idx;
-	int first_dir;
-	int first_file;
+	FS_Next first_dir;
+	FS_Next first_file;
+
+	static FS_Directory make_empty() {
+		return {
+			.next = {-1, -1, -1},
+			.flags = 0,
+			.name_idx = -1,
+			.first_dir = {-1, -1, -1},
+			.first_file = {-1, -1, -1}
+		};
+	}
 };
 
 struct FS_File {
-	int next;
+	FS_Next next;
 	u32 flags;
 	int name_idx;
 	int size;
 	u8 *buffer;
 	long last_reloaded;
+
+	static FS_File make_empty() {
+		return {
+			.next = {-1, -1, -1},
+			.flags = 0,
+			.name_idx = -1,
+			.size = 0,
+			.buffer = nullptr,
+			.last_reloaded = 0
+		};
+	}
 };
 
 template<typename T, int size>
@@ -266,7 +339,6 @@ struct Filesystem {
 	Vector<FS_File> files;
 
 	int init_at(const char *initial_path, char *list_dir_buffer);
-	int init_directory(String& path, int parent_dir, char **offsets_file, char **offsets_dir, char *list_dir_buffer);
 };
 
 int lookup_file(File_Database& db, char *name, int len);

@@ -3,6 +3,8 @@
 #include <time.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include "website.h"
 
@@ -165,37 +167,73 @@ int File_Database::lookup_file(char *name, int len)
 	return file;
 }
 
-int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
+struct Sort_Buffer {
+	char *offsets[LIST_DIR_MAX_FILES];
+	int indices[LIST_DIR_MAX_FILES];
+	long modified[LIST_DIR_MAX_FILES];
+	long created[LIST_DIR_MAX_FILES];
+};
+
+struct Sort_Numbers {
+	long *buffer;
+
+	bool operator()(int a, int b) {
+		return buffer[a] < buffer[b];
+	}
+};
+
+template <typename Entry>
+static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, String& path, Sort_Buffer *sorter, int count)
 {
-	name_pool.init(512, /*use_terminators=*/true);
+	std::sort(sorter->offsets, sorter->offsets + count, [](char *a, char *b) { return strcmp(a, b) < 0; });
 
-	int len = initial_path ? strlen(initial_path) : 0;
+	struct stat st;
+	int first = entries.size;
 
-	if (len) {
-		starting_path.assign(initial_path, len);
-		if (starting_path.last() != '/')
-			starting_path.add('/');
+	for (int i = 0; i < count; i++) {
+		int name_idx = name_pool.head;
+		int len = name_pool.add_string(sorter->offsets[i], 0);
+
+		path.add(name_pool.at(name_idx), len);
+		int res = stat(path.data(), &st);
+		path.scrub(len);
+
+		sorter->indices[i] = i;
+		sorter->modified[i] = st.st_mtim.tv_sec;
+		sorter->created[i] = st.st_ctim.tv_sec;
+
+		int next = i < count-1 ? entries.size+1 : -1;
+
+		Entry e = Entry::make_empty();
+		e.name_idx = name_idx;
+		e.next.alpha = next;
+
+		entries.add(e);
 	}
-	else {
-		starting_path.assign("./", 2);
+
+	Sort_Numbers numbers;
+	numbers.buffer = sorter->modified;
+	std::sort(sorter->indices, sorter->indices + count, numbers);
+	long modified_first = sorter->indices[0];
+
+	for (int i = 0; i < count - 1; i++) {
+		entries[first + sorter->indices[i]].next.modified = first + sorter->indices[i+1];
 	}
+	entries[first + sorter->indices[count-1]].next.modified = -1;
 
-	char *offsets_file[LIST_DIR_MAX_FILES];
-	char *offsets_dir[LIST_DIR_MAX_DIRS];
+	numbers.buffer = sorter->created;
+	std::sort(sorter->indices, sorter->indices + count, numbers);
+	long created_first = sorter->indices[0];
 
-	dirs.add((FS_Directory){
-		.next = -1,
-		.flags = 0,
-		.name_idx = -1,
-		.first_dir = -1,
-		.first_file = -1
-	});
+	for (int i = 0; i < count - 1; i++) {
+		entries[first + sorter->indices[i]].next.created = first + sorter->indices[i+1];
+	}
+	entries[first + sorter->indices[count-1]].next.created = -1;
 
-	String path(starting_path);
-	return init_directory(path, 0, offsets_file, offsets_dir, list_dir_buffer);
+	return (modified_first << 32) | created_first;
 }
 
-int Filesystem::init_directory(String& path, int parent_dir, char **offsets_file, char **offsets_dir, char *list_dir_buffer)
+static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_Buffer *sort_buf_dirs, Sort_Buffer *sort_buf_files, char *list_dir_buffer)
 {
 	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
 	if (path_fd < 0)
@@ -223,89 +261,85 @@ int Filesystem::init_directory(String& path, int parent_dir, char **offsets_file
 			continue;
 		}
 
+		Sort_Buffer *sorter = sort_buf_files;
+		int *n = &n_files;
+
 		if (dir->d_type == DT_DIR) {
-			if (n_dirs >= LIST_DIR_MAX_DIRS) {
-				n_dirs++;
-				break;
-			}
-
-			offsets_dir[n_dirs++] = name;
+			sorter = sort_buf_dirs;
+			n = &n_dirs;
 		}
-		else {
-			if (n_files >= LIST_DIR_MAX_FILES) {
-				n_files++;
-				break;
-			}
 
-			offsets_file[n_files++] = name;
+		if (*n >= LIST_DIR_MAX_FILES) {
+			*n += 1;
+			break;
 		}
+
+		sorter->offsets[*n] = name;
+		*n += 1;
 
 		dir = (linux_dirent64*)((char*)dir + record_len);
 		off += record_len;
 	}
 
-	auto sort_names_func = [](char *a, char *b) {
-		return strcmp(a, b) < 0;
-	};
-
 	if (n_dirs > 0) {
-		std::sort(offsets_dir, offsets_dir + n_dirs, sort_names_func);
-		dirs[parent_dir].first_dir = dirs.size;
-	}
-	else {
-		dirs[parent_dir].first_dir = -1;
-	}
+		int cur = fs.dirs.size;
+		long info = fs_add_entries(fs.dirs, fs.name_pool, path, sort_buf_dirs, n_dirs);
 
+		fs.dirs[parent_dir].first_dir = {
+			.alpha = cur,
+			.modified = cur + (int)(info >> 32),
+			.created = cur + (int)info
+		};
+	}
 	if (n_files > 0) {
-		std::sort(offsets_file, offsets_file + n_files, sort_names_func);
-		dirs[parent_dir].first_file = files.size;
-	}
-	else {
-		dirs[parent_dir].first_file = -1;
-	}
+		int cur = fs.files.size;
+		long info = fs_add_entries(fs.files, fs.name_pool, path, sort_buf_files, n_files);
 
-	for (int i = 0; i < n_dirs; i++) {
-		int name_idx = name_pool.head;
-		name_pool.add_string(offsets_dir[i], 0);
-
-		int next = i < n_dirs-1 ? dirs.size+1 : -1;
-		dirs.add((FS_Directory){
-			.next = next,
-			.flags = 0,
-			.name_idx = name_idx,
-			.first_dir = -1,
-			.first_file = -1
-		});
-	}
-	for (int i = 0; i < n_files; i++) {
-		int name_idx = name_pool.head;
-		name_pool.add_string(offsets_file[i], 0);
-
-		int next = i < n_files-1 ? files.size+1 : -1;
-		files.add((FS_File){
-			.next = next,
-			.flags = 0,
-			.name_idx = name_idx,
-			.size = -1,
-			.buffer = nullptr,
-			.last_reloaded = 0
-		});
+		fs.dirs[parent_dir].first_file = {
+			.alpha = cur,
+			.modified = cur + (int)(info >> 32),
+			.created = cur + (int)info
+		};
 	}
 
-	int end = dirs.size;
+	int end = fs.dirs.size;
 	int start = end - n_dirs;
 
 	for (int i = start; i < end; i++) {
-		int n = dirs[i].name_idx;
-		char *name = &name_pool.buf[n];
+		int n = fs.dirs[i].name_idx;
+		char *name = &fs.name_pool.buf[n];
 		int len = strlen(name);
 		path.add(name, len);
 		path.add('/');
 
-		init_directory(path, i, offsets_file, offsets_dir, list_dir_buffer);
+		fs_init_directory(fs, path, i, sort_buf_dirs, sort_buf_files, list_dir_buffer);
 
 		path.scrub(len + 1);
 	}
 
 	return 0;
+}
+
+int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
+{
+	name_pool.init(512, /*use_terminators=*/true, 0);
+
+	int len = initial_path ? strlen(initial_path) : 0;
+
+	if (len) {
+		starting_path.assign(initial_path, len);
+		if (starting_path.last() != '/')
+			starting_path.add('/');
+	}
+	else {
+		starting_path.assign("./", 2);
+	}
+
+	Sort_Buffer sort_buf_dirs;
+	Sort_Buffer sort_buf_files;
+
+	dirs.add(FS_Directory::make_empty());
+
+	String path(starting_path);
+	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, list_dir_buffer);
 }

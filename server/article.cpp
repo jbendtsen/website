@@ -19,7 +19,7 @@ const char *closing_tag_strings[] = {
 	"</h2>",
 };
 
-Space produce_article_html(Expander& article, char *input, int in_sz) {
+Space produce_article_html(Expander& article, char *input, int in_sz, int line_limit) {
 	Space title_space = {0};
 
 	article.add_string("<article>", 0);
@@ -34,6 +34,7 @@ Space produce_article_html(Expander& article, char *input, int in_sz) {
 	bool inside_para = false;
 	bool should_start_para = false;
 	bool div_emit_nl = false;
+	int nl_count = 0;
 
 	for (int i = 0; i < in_sz; i++) {
 		c = input[i];
@@ -45,6 +46,10 @@ Space produce_article_html(Expander& article, char *input, int in_sz) {
 				article.add_string(&sp, 1);
 			}
 			else if (c == '\n') {
+				nl_count++;
+				if (line_limit > 0 && nl_count > line_limit)
+					break;
+
 				// in CSS, does .class p {...} apply to all p elements inside an element that has a class called .class,
 				// or does it apply to all p elements that have a class called .class?
 				if (should_start_para || (next == '\n' && div_levels <= 0)) {
@@ -100,7 +105,12 @@ Space produce_article_html(Expander& article, char *input, int in_sz) {
 				article.add_string(&c, 1);
 			}
 		}
-		else if (mode > 0) {
+		else {
+			if (c == '\n') {
+				nl_count++;
+				if (line_limit > 0 && nl_count > line_limit)
+					break;
+			}
 			if (c == '[' || c == ']' || c == '|') {
 				if (len_of_mode > 0) {
 					if (mode == 1) {
@@ -255,9 +265,7 @@ int main(int argc, char **argv) {
 
 	int out_cap = in_sz * 2 + 256;
 	Expander article;
-	article.init(out_cap);
-
-	article.add_string(nullptr, 256);
+	article.init(out_cap, false, 256);
 
 	article.add_string("</title><style>\n", 0);
 
@@ -277,23 +285,18 @@ int main(int argc, char **argv) {
 
 	article.add_string("\n</style></head><body>", 0);
 
-	Space title_space = produce_article_html(article, input, in_sz);
+	Space title_space = produce_article_html(article, input, in_sz, 0);
 
 	article.add_string("</body></html>", 0);
 
-	const char *html_lead_in = "<!DOCTYPE html><html><head><title>";
-	int lead_in_len = strlen(html_lead_in);
-	int title_len = title_space.size > 256-lead_in_len ? 256-lead_in_len : title_space.size;
+	article.prepend_string_trunc(&input[title_space.offset], title_space.size);
+	article.prepend_string_overlap("<!DOCTYPE html><html><head><title>", 0);
 
-	article.start = 256 - title_len - lead_in_len;
-	int output_size;
-	char *output = article.get(&output_size);
-
-	memcpy(output + lead_in_len, &input[title_space.offset], title_len);
-	memcpy(output, html_lead_in, lead_in_len);
+	int output_sz = 0;
+	char *output = article.get(&output_sz);
 
 	f = fopen(argv[2], "wb");
-	fwrite(output, 1, output_size, f);
+	fwrite(output, 1, output_sz, f);
 	fclose(f);
 
 	delete[] input;
