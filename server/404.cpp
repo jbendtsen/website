@@ -1,6 +1,6 @@
 #include "website.h"
 
-void serve_404(File_Database& internal, int fd) {
+void serve_404(Filesystem& fs, int fd) {
 	String page;
 	page.reformat(
 		"<!DOCTYPE html><html><head>"

@@ -1,7 +1,7 @@
-p {
+article p {
 	font-family: Noto Sans, Gadugi, sans;
 }
-h1, h2, h3 {
+article h1, article h2, article h3 {
 	font-family: Noto Sans Mono, Source Code Pro, monospace;
 }
 .italic {
@@ -21,9 +21,6 @@ h1, h2, h3 {
 	font-size: 125%;
 	margin: 1.5em;
 }
-.green {
-	color: green;
-}
 article {
 	margin: auto;
 	max-width: 90%;
@@ -33,10 +30,10 @@ article {
 article div {
 	padding: 0.5em 0.5em 0.5em 2em;
 }
-h1 {
+article h1 {
 	font-size: 200%;
 }
-h2 {
+article h2 {
 	font-size: 150%;
 }
 .code, .code-java, .code-js {

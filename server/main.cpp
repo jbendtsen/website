@@ -68,11 +68,15 @@ void serve_page(Filesystem& fs, int request_fd, char *name, int len) {
 int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 	char buf[1024];
 
-	int sz = read(request_fd, buf, 1024);
+	int read_fd = request_fd;
+	if (read_fd == STDOUT_FILENO)
+		read_fd = STDIN_FILENO;
+
+	int sz = read(read_fd, buf, 1024);
 	if (sz < 0)
 		return 0;
 
-	if (sz <= 10) {
+	if (sz <= 4) {
 		log_info("Request was too small ({d} bytes)", sz);
 		return 1;
 	}
@@ -83,7 +87,7 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 
 	if (sz == 1024) {
 		char fluff[256];
-		while (read(request_fd, fluff, 256) == 256);
+		while (read(read_fd, fluff, 256) == 256);
 	}
 
 	char *end = &buf[sz-1];
@@ -104,9 +108,9 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 			p++;
 
 		int len = p - name;
-		int file = lookup_file(global, name, len);
+		int file = global.lookup_file(name, len);
 		if (file >= 0) {
-			File *f = &global.files[file];
+			DB_File *f = &global.files[file];
 			write_http_response(request_fd, "200 OK", f->type, (char*)f->buffer, f->size);
 		}
 		else {
@@ -120,18 +124,8 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 	return 0;
 }
 
-int main() {
-	init_logger();
-
-	File_Database global;
-	if (make_file_db(global, "global-files.txt") != 0)
-		return 1;
-
-	char *list_dir_buffer = new char[LIST_DIR_LEN];
-
-	Filesystem fs;
-	fs.init_at(".", list_dir_buffer);
-
+void http_loop(File_Database& global, Filesystem& fs)
+{
 	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
 	struct sockaddr_in addr;
@@ -161,5 +155,29 @@ int main() {
 	}
 
 	close(sock_fd);
+}
+
+int main() {
+	init_logger();
+
+	File_Database global;
+	if (global.init("global-files.txt") != 0)
+		return 1;
+
+	char *list_dir_buffer = new char[LIST_DIR_LEN];
+
+	Filesystem fs;
+	fs.init_at(".", list_dir_buffer);
+
+#ifdef DEBUG
+	while (true) {
+		serve_request(STDOUT_FILENO, global, fs);
+	}
+#else
+	http_loop(global, fs);
+#endif
+
+	delete[] list_dir_buffer;
+
 	return 0;
 }

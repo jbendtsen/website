@@ -151,18 +151,17 @@ struct Expander {
 
 		int growth = add_len + extra;
 
-		int h = head;
 		int c = cap;
 		if (c <= 0) c = 64;
 
-		while (h + growth > c)
+		while (head + growth > c)
 			c *= 2;
 
 		if (c > cap) {
 			char *new_str = new char[c];
 			memcpy(new_str, buf, cap);
 			memset(&new_str[cap], 0, c - cap);
-			delete[] buf;
+			if (buf) delete[] buf;
 			buf = new_str;
 			cap = c;
 		}
@@ -263,6 +262,56 @@ struct Vector {
 	}
 };
 
+template <typename T>
+struct Inline_Vector {
+	static constexpr int INLINE_COUNT = 32;
+
+	T space[INLINE_COUNT];
+	T *ptr;
+	int cap;
+	int size;
+
+	Inline_Vector() {
+		ptr = nullptr;
+		cap = INLINE_COUNT;
+		size = 0;
+	}
+	~Inline_Vector() {
+		if (ptr) delete[] ptr;
+	}
+
+	T *data() { return ptr ? ptr : space; }
+
+	T& operator[](int idx) { return data()[idx]; }
+
+	void resize(int new_size) {
+		if (new_size < 0)
+			new_size = 0;
+
+		int c = cap;
+		if (c < INLINE_COUNT)
+			c = INLINE_COUNT;
+		while (new_size > c)
+			c *= 2;
+
+		if (c != cap && c > INLINE_COUNT) {
+			T *new_data = new T[c];
+			memcpy(new_data, data(), cap * sizeof(T));
+			if (ptr) delete[] ptr;
+			ptr = new_data;
+		}
+
+		cap = c;
+		size = new_size;
+	}
+
+	void add(T t) {
+		int idx = size;
+		resize(size+1);
+		data()[idx] = t;
+	}
+};
+
 struct DB_File {
 	long last_reloaded;
 	u32 flags;
@@ -297,6 +346,7 @@ union FS_Next {
 
 struct FS_Directory {
 	FS_Next next;
+	int parent;
 	u32 flags;
 	int name_idx;
 	FS_Next first_dir;
@@ -305,6 +355,7 @@ struct FS_Directory {
 	static FS_Directory make_empty() {
 		return {
 			.next = {-1, -1, -1},
+			.parent = -1,
 			.flags = 0,
 			.name_idx = -1,
 			.first_dir = {-1, -1, -1},
@@ -315,6 +366,7 @@ struct FS_Directory {
 
 struct FS_File {
 	FS_Next next;
+	int parent;
 	u32 flags;
 	int name_idx;
 	int size;
@@ -324,6 +376,7 @@ struct FS_File {
 	static FS_File make_empty() {
 		return {
 			.next = {-1, -1, -1},
+			.parent = -1,
 			.flags = 0,
 			.name_idx = -1,
 			.size = 0,
@@ -345,18 +398,28 @@ struct Filesystem {
 	Vector<FS_Directory> dirs;
 	Vector<FS_File> files;
 
+	Filesystem() = default;
+	~Filesystem() {
+		for (int i = 0; i < files.size; i++) {
+			if (files[i].buffer)
+				delete[] files[i].buffer;
+		}
+	}
+
 	int init_at(const char *initial_path, char *list_dir_buffer);
+	int lookup_file(const char *path);
+	int lookup_dir(const char *path);
+	int refresh_file(int idx);
 };
 
-int lookup_file(File_Database& db, char *name, int len);
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
 
-Space produce_article_html(Expander& article, char *input, int in_sz, int line_limit);
+Space produce_article_html(Expander& article, const char *input, int in_sz, int line_limit);
 
-void serve_404(File_Database& internal, int fd);
-void serve_home_page(File_Database& internal, int fd);
-void serve_blog_overview(File_Database& internal, int fd);
-void serve_specific_blog(File_Database& internal, int fd, char *name, int len);
-void serve_projects_overview(File_Database& internal, int fd);
-void serve_specific_project(File_Database& internal, int fd, char *name, int len);
+void serve_404(Filesystem& fs, int fd);
+void serve_home_page(Filesystem& fs, int fd);
+void serve_blog_overview(Filesystem& fs, int fd);
+void serve_specific_blog(Filesystem& fs, int fd, char *name, int len);
+void serve_projects_overview(Filesystem& fs, int fd);
+void serve_specific_project(Filesystem& fs, int fd, char *name, int len);
 

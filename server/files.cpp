@@ -136,9 +136,10 @@ int File_Database::lookup_file(char *name, int len)
 		return -1;
 
 	struct timespec spec;
-	long t = clock_gettime(CLOCK_BOOTTIME, &spec);
+	clock_gettime(CLOCK_BOOTTIME, &spec);
 
 	DB_File *f = &files[file];
+	long t = spec.tv_sec;
 	long threshold = f->last_reloaded + SECS_UNTIL_RELOAD;
 
 	if (!f->buffer || t >= threshold || t < threshold - (1LL << 63)) {
@@ -183,7 +184,7 @@ struct Sort_Numbers {
 };
 
 template <typename Entry>
-static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, String& path, Sort_Buffer *sorter, int count)
+static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, int parent_dir, String& path, Sort_Buffer *sorter, int count)
 {
 	std::sort(sorter->offsets, sorter->offsets + count, [](char *a, char *b) { return strcmp(a, b) < 0; });
 
@@ -205,8 +206,9 @@ static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, String& 
 		int next = i < count-1 ? entries.size+1 : -1;
 
 		Entry e = Entry::make_empty();
-		e.name_idx = name_idx;
 		e.next.alpha = next;
+		e.parent = parent_dir;
+		e.name_idx = name_idx;
 
 		entries.add(e);
 	}
@@ -284,7 +286,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 
 	if (n_dirs > 0) {
 		int cur = fs.dirs.size;
-		long info = fs_add_entries(fs.dirs, fs.name_pool, path, sort_buf_dirs, n_dirs);
+		long info = fs_add_entries(fs.dirs, fs.name_pool, parent_dir, path, sort_buf_dirs, n_dirs);
 
 		fs.dirs[parent_dir].first_dir = {
 			.alpha = cur,
@@ -294,7 +296,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 	}
 	if (n_files > 0) {
 		int cur = fs.files.size;
-		long info = fs_add_entries(fs.files, fs.name_pool, path, sort_buf_files, n_files);
+		long info = fs_add_entries(fs.files, fs.name_pool, parent_dir, path, sort_buf_files, n_files);
 
 		fs.dirs[parent_dir].first_file = {
 			.alpha = cur,
@@ -343,4 +345,165 @@ int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
 
 	String path(starting_path);
 	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, list_dir_buffer);
+}
+
+int Filesystem::lookup_file(const char *path)
+{
+	const char *p = path;
+	int parent = 0;
+
+	while (*p) {
+		while (*p == '/') p++;
+		if (*p == 0)
+			return -1;
+
+		int len = 0;
+		while (p[len] && p[len] != '/') len++;
+
+		if (p[len] == 0) {
+			int idx = dirs[parent].first_file.alpha;
+			while (idx >= 0) {
+				char *name = name_pool.at(files[idx].name_idx);
+				int name_len = strlen(name);
+				if (len == name_len && !memcmp(p, name, len)) {
+					return idx;
+				}
+				idx = files[idx].next.alpha;
+			}
+			break;
+		}
+		else {
+			int idx = dirs[parent].first_dir.alpha;
+			while (idx >= 0) {
+				char *name = name_pool.at(dirs[idx].name_idx);
+				int name_len = strlen(name);
+				if (len == name_len && !memcmp(p, name, len)) {
+					break;
+				}
+				idx = dirs[idx].next.alpha;
+			}
+			if (idx < 0)
+				break;
+
+			parent = idx;
+		}
+
+		p += len + 1;
+	}
+
+	return -1;
+}
+
+int Filesystem::lookup_dir(const char *path)
+{
+	if (!path || !path[0] || (path[0] == '/' && !path[1]))
+		return 0;
+
+	const char *p = path;
+	int parent = 0;
+
+	while (*p) {
+		while (*p == '/') p++;
+		if (*p == 0)
+			return -1;
+
+		int len = 0;
+		while (p[len] && p[len] != '/') len++;
+
+		int idx = dirs[parent].first_dir.alpha;
+		while (idx >= 0) {
+			char *name = name_pool.at(dirs[idx].name_idx);
+			int name_len = strlen(name);
+			if (len == name_len && !memcmp(p, name, len)) {
+				break;
+			}
+			idx = dirs[idx].next.alpha;
+		}
+		if (idx < 0)
+			break;
+
+		if (p[len] == 0)
+			return idx;
+
+		parent = idx;
+		p += len + 1;
+	}
+
+	return -1;
+}
+
+int Filesystem::refresh_file(int f)
+{
+	if (f < 0 || f >= files.size)
+		return -1;
+
+	struct timespec spec;
+	clock_gettime(CLOCK_BOOTTIME, &spec);
+
+	long t = spec.tv_sec;
+	long threshold = files[f].last_reloaded + SECS_UNTIL_RELOAD;
+
+	if (files[f].buffer && t < threshold)
+		return 0;
+
+	char buf[1024];
+
+	char *name = name_pool.at(files[f].name_idx);
+	int name_len = strlen(name);
+	if (name_len >= 1023)
+		return -2;
+
+	int pos = 0;
+	for (int i = 0; i < name_len && pos < 1023; i++)
+		buf[pos++] = name[name_len-i-1];
+	buf[pos++] = '/';
+
+	int count = 0;
+
+	int parent = files[f].parent;
+	while (parent >= 0) {
+		int name_idx = dirs[parent].name_idx;
+		if (name_idx < 0)
+			break;
+
+		char *name = name_pool.at(name_idx);
+		int name_len = strlen(name);
+		if (name_len >= 1023)
+			return -2;
+
+		for (int i = 0; i < name_len && pos < 1023; i++)
+			buf[pos++] = name[name_len-i-1];
+		buf[pos++] = '/';
+
+		parent = dirs[parent].parent;
+	}
+
+	for (int i = 0; i < pos/2; i++) {
+		char c = buf[i];
+		buf[i] = buf[pos-i-1];
+		buf[pos-i-1] = c;
+	}
+
+	String path(starting_path);
+	path.add(buf + 1, pos - 1);
+
+	FILE *fp = fopen(path.data(), "rb");
+	if (!fp) {
+		log_error("Could not refresh file {s}\n", path.data());
+		return -3;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	files[f].size = ftell(fp);
+	rewind(fp);
+
+	if (!files[f].size) {
+		files[f].buffer = nullptr;
+		return 0;
+	}
+
+	files[f].buffer = new u8[files[f].size];
+	fread(files[f].buffer, 1, files[f].size, fp);
+	fclose(fp);
+	return 0;
 }

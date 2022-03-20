@@ -12,7 +12,7 @@ const char *closing_tag_strings[] = {
 	"</h2>",
 };
 
-Space produce_article_html(Expander& article, char *input, int in_sz, int line_limit) {
+Space produce_article_html(Expander& article, const char *input, int in_sz, int line_limit) {
 	Space title_space = {0};
 
 	article.add_string("<article>", 0);
@@ -115,7 +115,7 @@ Space produce_article_html(Expander& article, char *input, int in_sz, int line_l
 						article.add_string("</span>", 0);
 					}
 					else if (mode == 3) {
-						char *s = &input[i - len_of_mode];
+						const char *s = &input[i - len_of_mode];
 						if (c != ']') {
 							const char *tag_to_add = nullptr;
 							int orig_len = 0;
@@ -153,7 +153,7 @@ Space produce_article_html(Expander& article, char *input, int in_sz, int line_l
 								if (len_of_mode >= orig_len + 2) {
 									int class_len = len_of_mode - 6;
 									int short_len = class_len;
-									char *class_name = &s[6];
+									const char *class_name = &s[6];
 									for (int j = 0; j < class_len; j++) {
 										if (class_name[j] == '-') {
 											short_len = j;

@@ -1,0 +1,1 @@
+code-*.js highlighter.js syntax-*.json application/javascript
