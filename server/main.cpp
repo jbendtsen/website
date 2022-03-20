@@ -32,7 +32,7 @@ void write_http_response(int request_fd, const char *status, const char *content
 		status, datetime, content_type, size
 	);
 
-	write(request_fd, response.data(), response.size());
+	write(request_fd, response.data(), response.len);
 
 	if (data)
 		write(request_fd, data, size);

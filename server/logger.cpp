@@ -24,9 +24,9 @@ void init_logger() {
 static void log(Debug_Output& dbg, const char *fmt, va_list args) {
 	String out;
 	write_formatted_string(out, fmt, args);
-	fwrite(out.data(), 1, out.size(), dbg.output);
+	fwrite(out.data(), 1, out.len, dbg.output);
 
-	if (out.data()[out.size()-1] != '\n')
+	if (out.data()[out.len-1] != '\n')
 		fputc('\n', dbg.output);
 }
 

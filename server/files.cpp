@@ -209,6 +209,8 @@ static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, int pare
 		e.next.alpha = next;
 		e.parent = parent_dir;
 		e.name_idx = name_idx;
+		e.created_time = st.st_ctim.tv_sec;
+		e.modified_time = st.st_mtim.tv_sec;
 
 		entries.add(e);
 	}

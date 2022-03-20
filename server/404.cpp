@@ -13,7 +13,7 @@ void serve_404(Filesystem& fs, int fd) {
 		"</body></html>"
 	);
 
-	write_http_response(fd, "404 Not Found", "text/html", page.data(), page.size());
+	write_http_response(fd, "404 Not Found", "text/html", page.data(), page.len);
 }
 
 

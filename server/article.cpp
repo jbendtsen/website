@@ -1,10 +1,26 @@
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include "website.h"
 
 #define CMD_BLOCK     1
 #define CMD_TITLE     2
 #define CMD_SUBTITLE  3
+
+static const char *months[] = {
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December"
+};
 
 const char *closing_tag_strings[] = {
 	"</div>",
@@ -12,7 +28,7 @@ const char *closing_tag_strings[] = {
 	"</h2>",
 };
 
-Space produce_article_html(Expander& article, const char *input, int in_sz, int line_limit) {
+Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit) {
 	Space title_space = {0};
 
 	article.add_string("<article>", 0);
@@ -197,6 +213,18 @@ Space produce_article_html(Expander& article, const char *input, int in_sz, int 
 									should_start_para = true;
 								}
 								else if (tag == CMD_SUBTITLE) {
+									struct tm *date = localtime(&created_time);
+									int day_kind = 0;
+									int day_mod10 = date->tm_mday % 10;
+									if (day_mod10 < 4 && (date->tm_mday < 4 || date->tm_mday > 20))
+										day_kind = day_mod10;
+
+									const char *kinds[] = {"th", "st", "nd", "rd"};
+									char datebuf[128];
+									String date_str(datebuf, 128);
+									date_str.reformat("<p class=\"italic\">{d}{s} {s}, {d}</p>", date->tm_mday, kinds[day_kind], months[date->tm_mon], 1900 + date->tm_year);
+
+									article.add_string(date_str.data(), date_str.len);
 									should_start_para = true;
 								}
 							}

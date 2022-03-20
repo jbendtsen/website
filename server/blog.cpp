@@ -8,7 +8,7 @@ static void render_blog(Filesystem& fs, Expander& html, int blog_idx) {
 	fs.refresh_file(blog_idx);
 
 	FS_File& file = fs.files[blog_idx];
-	produce_article_html(html, (const char*)file.buffer, file.size, BLOG_PREVIEW_LINE_LIMIT);
+	produce_article_html(html, (const char*)file.buffer, file.size, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
 
 	html.add_string("</div>", 0);
 }

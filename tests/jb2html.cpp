@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
 
 	article.add_string("\n</style></head><body>", 0);
 
-	Space title_space = produce_article_html(article, input, in_sz, 0);
+	Space title_space = produce_article_html(article, input, in_sz, 0, 0);
 
 	article.add_string("</body></html>", 0);
 

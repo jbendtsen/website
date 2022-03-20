@@ -64,9 +64,6 @@ struct String {
 	char *data() {
 		return ptr ? (char*)((u64)ptr & ~1ULL) : &initial_buf[0];
 	}
-	int size() {
-		return len;
-	}
 
 	char last() {
 		return data()[len-1];
@@ -349,6 +346,8 @@ struct FS_Directory {
 	int parent;
 	u32 flags;
 	int name_idx;
+	long created_time;
+	long modified_time;
 	FS_Next first_dir;
 	FS_Next first_file;
 
@@ -358,6 +357,8 @@ struct FS_Directory {
 			.parent = -1,
 			.flags = 0,
 			.name_idx = -1,
+			.created_time = 0,
+			.modified_time = 0,
 			.first_dir = {-1, -1, -1},
 			.first_file = {-1, -1, -1}
 		};
@@ -369,8 +370,10 @@ struct FS_File {
 	int parent;
 	u32 flags;
 	int name_idx;
-	int size;
+	long created_time;
+	long modified_time;
 	u8 *buffer;
+	int size;
 	long last_reloaded;
 
 	static FS_File make_empty() {
@@ -379,8 +382,10 @@ struct FS_File {
 			.parent = -1,
 			.flags = 0,
 			.name_idx = -1,
-			.size = 0,
+			.created_time = 0,
+			.modified_time = 0,
 			.buffer = nullptr,
+			.size = 0,
 			.last_reloaded = 0
 		};
 	}
@@ -414,7 +419,7 @@ struct Filesystem {
 
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
 
-Space produce_article_html(Expander& article, const char *input, int in_sz, int line_limit);
+Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit);
 
 void serve_404(Filesystem& fs, int fd);
 void serve_home_page(Filesystem& fs, int fd);
