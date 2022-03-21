@@ -193,7 +193,7 @@ static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, int pare
 
 	for (int i = 0; i < count; i++) {
 		int name_idx = name_pool.head;
-		int len = name_pool.add_string(sorter->offsets[i], 0);
+		int len = name_pool.add(sorter->offsets[i]);
 
 		path.add(name_pool.at(name_idx), len);
 		int res = stat(path.data(), &st);
@@ -442,10 +442,9 @@ int Filesystem::refresh_file(int f)
 	struct timespec spec;
 	clock_gettime(CLOCK_BOOTTIME, &spec);
 
-	long t = spec.tv_sec;
 	long threshold = files[f].last_reloaded + SECS_UNTIL_RELOAD;
 
-	if (files[f].buffer && t < threshold)
+	if (files[f].buffer && spec.tv_sec < threshold)
 		return 0;
 
 	char buf[1024];
@@ -494,6 +493,8 @@ int Filesystem::refresh_file(int f)
 		log_error("Could not refresh file {s}\n", path.data());
 		return -3;
 	}
+
+	//files[f].last_reloaded = spec.tv_sec;
 
 	fseek(fp, 0, SEEK_END);
 	files[f].size = ftell(fp);

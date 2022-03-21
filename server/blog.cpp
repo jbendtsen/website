@@ -9,19 +9,19 @@ static void render_blog_preview(Filesystem& fs, Expander& html, int blog_idx)
 	char *fname = fs.name_pool.at(file.name_idx);
 	int name_len = strlen(fname) - 3;
 	if (name_len <= 0) {
-		html.add_string("<div class=\"article-preview\"><div class=\"preview-overlay\"></div></div>", 0);
+		html.add("<div class=\"article-preview\"><div class=\"preview-overlay\"></div></div>", 0);
 		return;
 	}
 
-	html.add_string("<a href=\"blog/", 0);
+	html.add("<a href=\"/blog/", 0);
 	html.add_and_escape(fname, name_len);
-	html.add_string("\"><div class=\"article-preview\"><div class=\"preview-overlay\"></div>", 0);
+	html.add("\"><div class=\"article-preview\"><div class=\"preview-overlay\"></div>", 0);
 
 	fs.refresh_file(blog_idx);
 
 	produce_article_html(html, (const char*)file.buffer, file.size, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
 
-	html.add_string("</div></a>", 0);
+	html.add("</div></a>", 0);
 }
 
 void serve_blog_overview(Filesystem& fs, int request_fd)
@@ -46,35 +46,34 @@ void serve_blog_overview(Filesystem& fs, int request_fd)
 
 	Expander html;
 	html.init(blogs.size * 2048, false, 0);
-	html.add_string("<!DOCTYPE html><html><head><title>Blogs</title><style>\n", 0);
+	html.add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Blogs</title><style>\n", 0);
 
-	int css_idx = fs.lookup_file("client/article.css");
-	if (css_idx >= 0) {
-		fs.refresh_file(css_idx);
-		html.add_string((const char*)fs.files[css_idx].buffer, fs.files[css_idx].size);
-	}
+	fs.add_file_to_html(html, "client/banner.css");
+	fs.add_file_to_html(html, "client/article.css");
+	fs.add_file_to_html(html, "client/blogs.css");
 
-	css_idx = fs.lookup_file("client/blogs.css");
-	if (css_idx >= 0) {
-		fs.refresh_file(css_idx);
-		html.add_string((const char*)fs.files[css_idx].buffer, fs.files[css_idx].size);
-	}
+	html.add(
+		"article h1 { font-size: 160%; }\n"
+		"article h2 { font-size: 125%; }\n"
+		"article h3 { font-size: 100%; }\n"
+		"article p  { font-size: 90%;  }\n"
+	);
 
-	html.add_string("\n</style></head><body>\n", 0);
+	html.add("\n</style></head><body>\n", 0);
 
-	html.add_string("<h1>Blogs</h1>", 0);
+	add_banner(fs, html, NAV_IDX_BLOG);
 
-	html.add_string("<div id=\"articles\"><div class=\"article-column article-left\">", 0);
+	html.add("<div id=\"articles\"><div class=\"article-column article-left\">", 0);
 
 	for (int i = 0; i < blogs.size; i += 2)
 		render_blog_preview(fs, html, blogs[blogs.size - i - 1]);
 
-	html.add_string("</div><div class=\"article-column article-right\">", 0);
+	html.add("</div><div class=\"article-column article-right\">", 0);
 
 	for (int i = 1; i < blogs.size; i += 2)
 		render_blog_preview(fs, html, blogs[blogs.size - i - 1]);
 
-	html.add_string("</div></body></html>", 0);
+	html.add("</div></body></html>", 0);
 
 	int html_size = 0;
 	char *response = html.get(&html_size);
@@ -99,22 +98,27 @@ void serve_specific_blog(Filesystem& fs, int request_fd, char *name, int name_le
 
 	Expander html;
 	html.init(file.size * 2, false, 256);
-	html.add_string("</title><style>\n", 0);
+	html.add("</title><style>\n", 0);
 
-	int css_idx = fs.lookup_file("client/article.css");
-	if (css_idx >= 0) {
-		fs.refresh_file(css_idx);
-		html.add_string((const char*)fs.files[css_idx].buffer, fs.files[css_idx].size);
-	}
+	fs.add_file_to_html(html, "client/banner.css");
+	fs.add_file_to_html(html, "client/article.css");
 
-	html.add_string("\n</style></head><body>", 0);
+	html.add(
+		"article h1 { font-size: 200%; }\n"
+		"article h2 { font-size: 150%; }\n"
+		"article h3 { font-size: 120%; }\n"
+	);
+
+	html.add("\n</style></head><body>", 0);
+
+	add_banner(fs, html, NAV_IDX_BLOG);
 
 	Space title_space = produce_article_html(html, (const char*)file.buffer, file.size, file.created_time, 0);
 
-	html.add_string("</body></html>", 0);
+	html.add("</body></html>", 0);
 
 	html.prepend_string_trunc((const char*)&file.buffer[title_space.offset], title_space.size);
-	html.prepend_string_overlap("<!DOCTYPE html><html><head><title>", 0);
+	html.prepend_string_overlap("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>", 0);
 
 	int out_size = 0;
 	char *out = html.get(&out_size);

@@ -30,12 +30,6 @@ article {
 article div {
 	padding: 0.5em 0.5em 0.5em 2em;
 }
-article h1 {
-	font-size: 200%;
-}
-article h2 {
-	font-size: 150%;
-}
 .code, .code-java, .code-js {
 	white-space: pre-wrap;
 	font-family: monospace;

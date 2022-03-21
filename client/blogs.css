@@ -8,18 +8,29 @@
 }
 .article-column a {
 	text-decoration: none;
+	display: block;
+	margin-top: 1em;
+	margin-bottom: 1em;
+}
+.article-column a:hover {
+	box-shadow: 0 0 0.5em 0.5em #eee;
+	background-color: #eee;
 }
 .article-left {
-	margin-right: 2em;
+	margin-right: 1em;
 }
 .article-right {
 	margin-top: min(12em, 16vh);
-	margin-left: 2em;
+	margin-left: 1em;
 }
 .article-preview {
+	pointer-events: none;
 	position: relative;
 	overflow: clip;
 	height: min(24em, 32vh);
+}
+.article-preview article {
+	padding-top: 0.1em;
 }
 .preview-overlay {
 	position: absolute;

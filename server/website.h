@@ -12,6 +12,11 @@
 
 #define N_CLOSING_TAGS 100
 
+#define NAV_IDX_NULL     -1
+#define NAV_IDX_HOME      0
+#define NAV_IDX_BLOG      1
+#define NAV_IDX_PROJECTS  2
+
 typedef unsigned char u8;
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -38,9 +43,9 @@ void write_escaped_byte(int ch, char *buf);
 struct String {
 	static constexpr int INITIAL_SIZE = 32;
 
-	char *ptr;
-	int capacity;
-	int len;
+	char *ptr = nullptr;
+	int capacity = 0;
+	int len = 0;
 	char initial_buf[INITIAL_SIZE];
 
 	String() {
@@ -125,13 +130,12 @@ struct String {
 };
 
 struct Expander {
-	char *buf;
-	int cap;
-	int head;
-	int start;
-	int extra;
+	char *buf = nullptr;
+	int cap = 0;
+	int head = 0;
+	int start = 0;
+	int extra = 0;
 
-	Expander() = default;
 	~Expander() {
 		if (buf) delete[] buf;
 	}
@@ -156,9 +160,9 @@ struct Expander {
 		extra = (int)use_terminators;
 	}
 
-	int add_string(const char *add, int add_len) {
-		if (add && add_len <= 0)
-			add_len = strlen(add);
+	int add(const char *str, int add_len) {
+		if (str && add_len <= 0)
+			add_len = strlen(str);
 
 		int growth = add_len + extra;
 
@@ -169,24 +173,28 @@ struct Expander {
 			c *= 2;
 
 		if (c > cap) {
-			char *new_str = new char[c];
-			memcpy(new_str, buf, cap);
-			memset(&new_str[cap], 0, c - cap);
+			char *new_buf = new char[c];
+			memcpy(new_buf, buf, cap);
+			memset(&new_buf[cap], 0, c - cap);
 			if (buf) delete[] buf;
-			buf = new_str;
+			buf = new_buf;
 			cap = c;
 		}
 
-		if (add)
-			memcpy(&buf[head], add, add_len);
+		if (str)
+			memcpy(&buf[head], str, add_len);
 
 		head += growth;
 		return add_len;
 	}
 
+	int add(const char *str) {
+		return add(str, 0);
+	}
+
 	void add_and_escape(const char *str, int size) {
 		int pos = head;
-		add_string(nullptr, size * 6 + 1);
+		add(nullptr, size * 6 + 1);
 
 		for (int i = 0; i < size && str[i]; i++) {
 			char c = str[i];
@@ -447,11 +455,42 @@ struct Filesystem {
 		}
 	}
 
+	template <class Container>
+	bool add_file_to_html(Container& html, const char *path) {
+		int fidx = lookup_file(path);
+		if (fidx >= 0) {
+			refresh_file(fidx);
+			if (files[fidx].buffer) {
+				html.add((const char*)files[fidx].buffer, files[fidx].size);
+				return true;
+			}
+		}
+		return false;
+	}
+
 	int init_at(const char *initial_path, char *list_dir_buffer);
 	int lookup_file(const char *path);
 	int lookup_dir(const char *path);
 	int refresh_file(int idx);
 };
+
+template <class Container>
+void add_banner(Filesystem& fs, Container& html, int hl_idx)
+{
+	html.add("<nav><div id=\"inner-nav\"><a class=\"nav-item");
+	if (hl_idx == 0) html.add(" nav-item-cur");
+	html.add("\" href=\"/\"><span>Home");
+
+	html.add("</span></a><a class=\"nav-item");
+	if (hl_idx == 1) html.add(" nav-item-cur");
+	html.add("\" href=\"/blog\"><span>Blog");
+
+	html.add("</span></a><a class=\"nav-item");
+	if (hl_idx == 2) html.add(" nav-item-cur");
+	html.add("\" href=\"/projects\"><span>Projects");
+
+	html.add("</span></a></div></nav>");
+}
 
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
 
