@@ -290,20 +290,20 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 		int cur = fs.dirs.size;
 		long info = fs_add_entries(fs.dirs, fs.name_pool, parent_dir, path, sort_buf_dirs, n_dirs);
 
-		fs.dirs[parent_dir].first_dir = {
-			.alpha = cur,
-			.modified = cur + (int)(info >> 32),
-			.created = cur + (int)info
+		fs.dirs[parent_dir].first_dir = (FS_Next){
+			/*.alpha =*/ cur,
+			/*.modified =*/ cur + (int)(info >> 32),
+			/*.created =*/ cur + (int)info
 		};
 	}
 	if (n_files > 0) {
 		int cur = fs.files.size;
 		long info = fs_add_entries(fs.files, fs.name_pool, parent_dir, path, sort_buf_files, n_files);
 
-		fs.dirs[parent_dir].first_file = {
-			.alpha = cur,
-			.modified = cur + (int)(info >> 32),
-			.created = cur + (int)info
+		fs.dirs[parent_dir].first_file = (FS_Next){
+			/*.alpha =*/ cur,
+			/*.modified =*/ cur + (int)(info >> 32),
+			/*.created =*/ cur + (int)info
 		};
 	}
 

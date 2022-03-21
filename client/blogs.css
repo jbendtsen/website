@@ -4,16 +4,22 @@
 	justify-content: center;
 }
 .article-column {
+	max-width: 40%;
+}
+.article-column a {
+	text-decoration: none;
 }
 .article-left {
+	margin-right: 2em;
 }
 .article-right {
-	margin-top: 12em;
+	margin-top: min(12em, 16vh);
+	margin-left: 2em;
 }
 .article-preview {
 	position: relative;
 	overflow: clip;
-	height: 24em;
+	height: min(24em, 32vh);
 }
 .preview-overlay {
 	position: absolute;

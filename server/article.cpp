@@ -77,29 +77,10 @@ Space produce_article_html(Expander& article, const char *input, int in_sz, long
 					div_emit_nl = true;
 				}
 			}
-			else if (c < ' ' || c > '~' || c == '&' || c == '<' || c == '>' || c == '"') {
-				int n = c;
-				int len = 0;
-
-				char esc_buf[16];
-				char *p = &esc_buf[15];
-
-				*p = 0; p--;
-				*p = ';'; p--; len++;
-
-				if (n > 0) {
-					while (n > 0) {
-						*p = '0' + (n % 10); p--; len++;
-						n /= 10;
-					}
-				}
-				else {
-					*p = '0'; p--; len++;
-				}
-
-				*p = '#'; p--; len++;
-				*p = '&'; len++;
-				article.add_string(p, len);
+			else if (NEEDS_ESCAPE(c)) {
+				char esc_buf[8];
+				write_escaped_byte(c, esc_buf);
+				article.add_string(esc_buf, 6);
 			}
 			else if (c == '[' && div_levels <= 0) {
 				mode = 1;

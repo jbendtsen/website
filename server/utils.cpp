@@ -191,18 +191,20 @@ int String::resize(int sz) {
 	if (sz < 0)
 		return len;
 
-	if (sz <= capacity) {
+	int actual_sz = sz + 1;
+
+	if (actual_sz <= capacity) {
 		len = sz;
 		return len;
 	}
 
 	if ((u64)ptr & 1ULL) {
-		if (sz > capacity) sz = capacity;
-		len = sz;
+		if (actual_sz > capacity)
+			sz = capacity - 1;
+
+		len = sz >= 0 ? sz : 0;
 		return len;
 	}
-
-	int actual_sz = sz + 1;
 
 	int old_cap = capacity;
 	if (capacity < INITIAL_SIZE)
@@ -255,16 +257,58 @@ void String::add(const char *str, int size) {
 	}
 }
 
-char *append_string(char *dst, char *src, int len) {
-	if (len <= 0) {
+void String::add_and_escape(const char *str, int size) {
+	int head = len;
+	resize(len + size);
+
+	for (int i = 0; str[i] && i < size; i++) {
+		char c = str[i];
+		if (NEEDS_ESCAPE(c)) {
+			int h = head + 6;
+			if (h+1 >= capacity)
+				resize(h+1);
+
+			write_escaped_byte(c, data() + head);
+			head = h;
+		}
+		else {
+			int h = head + 1;
+			if (h+1 >= capacity)
+				resize(h+1);
+
+			data()[head] = c;
+			head = h;
+		}
+	}
+
+	len = head;
+}
+
+char *append_string(char *dst, char *src, int size) {
+	if (size <= 0) {
 		while (*src)
 			*dst++ = *src++;
 	}
 	else {
-		for (int i = 0; i < len; i++)
+		for (int i = 0; i < size; i++)
 			*dst++ = *src++;
 	}
 
 	*dst = 0;
 	return dst;
+}
+
+void write_escaped_byte(int ch, char *buf) {
+	u64 map[2];
+	map[0] = 0x3736353433323130;
+	map[1] = 0x6665646362613938;
+
+	char *p = buf;
+	*p++ = '&';
+	*p++ = '#';
+	*p++ = 'x';
+	*p++ = ((char*)map)[(ch >> 4) & 0xf];
+	*p++ = ((char*)map)[ch & 0xf];
+	*p++ = ';';
+	*p = 0;
 }

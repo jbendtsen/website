@@ -3,6 +3,8 @@
 #include <cstdarg>
 #include <cstring>
 
+#define NEEDS_ESCAPE(c) ((c) < ' ' || (c) > '~' || (c) == '&' || (c) == '<' || (c) == '>' || (c) == '"')
+
 #define SECS_UNTIL_RELOAD 60
 
 #define LIST_DIR_MAX_FILES  (1 << 12)
@@ -27,6 +29,8 @@ void log_error(const char *fmt, ...);
 
 void write_formatted_string(String& str, const char *fmt, va_list args);
 char *append_string(char *dst, char *src, int len);
+
+void write_escaped_byte(int ch, char *buf);
 
 // Can be used as a managed or unmanaged string.
 // If the string is unmanaged, the LSB of 'ptr' is set to 1.
@@ -82,10 +86,14 @@ struct String {
 
 	int resize(int sz);
 	void add(String& str);
-	void add(const char *str, int len);
+	void add(const char *str, int size);
+	void add_and_escape(const char *str, int size);
 
 	void add(char c) {
 		add(&c, 1);
+	}
+	void add(const char *str) {
+		add(str, -1);
 	}
 
 	void assign(const char *str, int size) {
@@ -107,6 +115,12 @@ struct String {
 		write_formatted_string(str, fmt, args);
 		va_end(args);
 		return str;
+	}
+
+	static String make_escaped(const char *str, int size) {
+		String s;
+		s.add_and_escape(str, size);
+		return s;
 	}
 };
 
@@ -168,6 +182,24 @@ struct Expander {
 
 		head += growth;
 		return add_len;
+	}
+
+	void add_and_escape(const char *str, int size) {
+		int pos = head;
+		add_string(nullptr, size * 6 + 1);
+
+		for (int i = 0; i < size && str[i]; i++) {
+			char c = str[i];
+			if (NEEDS_ESCAPE(c)) {
+				write_escaped_byte(c, &buf[pos]);
+				pos += 6;
+			}
+			else {
+				buf[pos++] = c;
+			}
+		}
+
+		head = pos;
 	}
 
 	int prepend_string_trunc(const char *add, int add_len) {
@@ -331,6 +363,10 @@ struct File_Database {
 	int init(const char *fname);
 	int lookup_file(char *name, int len);
 };
+
+#define FS_ORDER_ALPHA    0
+#define FS_ORDER_MODIFIED 1
+#define FS_ORDER_CREATED  2
 
 union FS_Next {
 	struct {
