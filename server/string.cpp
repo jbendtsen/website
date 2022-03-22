@@ -312,3 +312,11 @@ void write_escaped_byte(int ch, char *buf) {
 	*p++ = ';';
 	*p = 0;
 }
+
+bool caseless_match(const char *a, const char *b) {
+	while (*a && *b) {
+		if (*a++ != *b++)
+			return false;
+	}
+	return *a == 0 && *b == 0;
+}

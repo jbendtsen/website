@@ -37,6 +37,8 @@ char *append_string(char *dst, char *src, int len);
 
 void write_escaped_byte(int ch, char *buf);
 
+bool caseless_match(const char *a, const char *b);
+
 // Can be used as a managed or unmanaged string.
 // If the string is unmanaged, the LSB of 'ptr' is set to 1.
 // This class *must* have access to at least len+1 bytes of memory.
@@ -193,6 +195,9 @@ struct Expander {
 	}
 
 	void add_and_escape(const char *str, int size) {
+		if (size <= 0)
+			size = strlen(str);
+
 		int pos = head;
 		add(nullptr, size * 6 + 1);
 
