@@ -19,7 +19,9 @@ static void render_blog_preview(Filesystem& fs, Expander& html, int blog_idx)
 
 	fs.refresh_file(blog_idx);
 
+	html.add("<article class=\"blog\">");
 	produce_article_html(html, (const char*)file.buffer, file.size, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
+	html.add("</article>");
 
 	html.add("</div></a>", 0);
 }
@@ -113,7 +115,9 @@ void serve_specific_blog(Filesystem& fs, int request_fd, char *name, int name_le
 
 	add_banner(fs, html, NAV_IDX_BLOG);
 
+	html.add("<article class=\"blog\">");
 	Space title_space = produce_article_html(html, (const char*)file.buffer, file.size, file.created_time, 0);
+	html.add("</article>");
 
 	html.add("</body></html>", 0);
 

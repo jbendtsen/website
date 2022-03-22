@@ -1,5 +1,155 @@
 #include "website.h"
 
+String::String() {
+	ptr = nullptr;
+	capacity = INITIAL_SIZE;
+	len = 0;
+	initial_buf[0] = 0;
+}
+String::String(char *buf, int size) {
+	ptr = (char*)((u64)buf | 1ULL);
+	capacity = size;
+	len = 0;
+}
+String::String(String& other) {
+	capacity = other.capacity;
+	len = other.len;
+	ptr = other.ptr ? new char[other.capacity] : nullptr;
+	memcpy(data(), other.data(), len + 1);
+}
+String::~String() {
+	if (ptr && ((u64)ptr & 1ULL) == 0)
+		delete[] ptr;
+}
+
+char *String::data() {
+	return ptr ? (char*)((u64)ptr & ~1ULL) : &initial_buf[0];
+}
+
+char String::last() {
+	return data()[len-1];
+}
+
+void String::scrub(int len_from_end) {
+	if (len_from_end <= 0)
+		return;
+
+	int new_head = len - len_from_end;
+	if (new_head < 0) new_head = 0;
+
+	memset(data() + new_head, 0, len - new_head);
+	len = new_head;
+}
+
+int String::resize(int sz) {
+	if (sz < 0)
+		return len;
+
+	int actual_sz = sz + 1;
+
+	if (actual_sz <= capacity) {
+		len = sz;
+		return len;
+	}
+
+	if ((u64)ptr & 1ULL) {
+		if (actual_sz > capacity)
+			sz = capacity - 1;
+
+		len = sz >= 0 ? sz : 0;
+		return len;
+	}
+
+	int old_cap = capacity;
+	if (capacity < INITIAL_SIZE)
+		capacity = INITIAL_SIZE;
+	while (actual_sz > capacity)
+		capacity *= 2;
+
+	char *buf = new char[capacity];
+	if (old_cap > 0) {
+		if (ptr) {
+			memcpy(buf, ptr, old_cap);
+			delete[] ptr;
+		}
+		else if (old_cap <= INITIAL_SIZE) {
+			memcpy(buf, initial_buf, old_cap);
+		}
+	}
+
+	buf[sz] = 0;
+	ptr = buf;
+	len = sz;
+	return len;
+}
+
+void String::add(String& str) {
+	char *src_data = str.data();
+	int head = len;
+	int new_size = resize(len + str.len);
+	int to_add = new_size - head;
+
+	if (to_add > 0) {
+		char *dst_data = data();
+		memcpy(dst_data + head, src_data, to_add);
+		dst_data[head + to_add] = 0;
+	}
+}
+
+void String::add(const char *str, int size) {
+	size = size < 0 ? strlen(str) : size;
+	if (size == 0) return;
+
+	int head = len;
+	int new_size = resize(len + size);
+	int to_add = new_size - head;
+
+	if (to_add > 0) {
+		char *dst_data = data();
+		memcpy(dst_data + head, str, to_add);
+		dst_data[head + to_add] = 0;
+	}
+}
+
+void String::add(char c) {
+	add(&c, 1);
+}
+void String::add(const char *str) {
+	add(str, -1);
+}
+
+void String::assign(const char *str, int size) {
+	resize(0);
+	add(str, size);
+}
+
+void String::add_and_escape(const char *str, int size) {
+	int head = len;
+	resize(len + size);
+
+	for (int i = 0; str[i] && i < size; i++) {
+		char c = str[i];
+		if (NEEDS_ESCAPE(c)) {
+			int h = head + 6;
+			if (h+1 >= capacity)
+				resize(h+1);
+
+			write_escaped_byte(c, data() + head);
+			head = h;
+		}
+		else {
+			int h = head + 1;
+			if (h+1 >= capacity)
+				resize(h+1);
+
+			data()[head] = c;
+			head = h;
+		}
+	}
+
+	len = head;
+}
+
 struct String_Format {
 	int param;
 	int subparam;
@@ -185,103 +335,6 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 
 	str.data()[pos] = 0;
 	str.resize(str.len - 1);
-}
-
-int String::resize(int sz) {
-	if (sz < 0)
-		return len;
-
-	int actual_sz = sz + 1;
-
-	if (actual_sz <= capacity) {
-		len = sz;
-		return len;
-	}
-
-	if ((u64)ptr & 1ULL) {
-		if (actual_sz > capacity)
-			sz = capacity - 1;
-
-		len = sz >= 0 ? sz : 0;
-		return len;
-	}
-
-	int old_cap = capacity;
-	if (capacity < INITIAL_SIZE)
-		capacity = INITIAL_SIZE;
-	while (actual_sz > capacity)
-		capacity *= 2;
-
-	char *buf = new char[capacity];
-	if (old_cap > 0) {
-		if (ptr) {
-			memcpy(buf, ptr, old_cap);
-			delete[] ptr;
-		}
-		else if (old_cap <= INITIAL_SIZE) {
-			memcpy(buf, initial_buf, old_cap);
-		}
-	}
-
-	buf[sz] = 0;
-	ptr = buf;
-	len = sz;
-	return len;
-}
-
-void String::add(String& str) {
-	char *src_data = str.data();
-	int head = len;
-	int new_size = resize(len + str.len);
-	int to_add = new_size - head;
-
-	if (to_add > 0) {
-		char *dst_data = data();
-		memcpy(dst_data + head, src_data, to_add);
-		dst_data[head + to_add] = 0;
-	}
-}
-
-void String::add(const char *str, int size) {
-	size = size < 0 ? strlen(str) : size;
-	if (size == 0) return;
-
-	int head = len;
-	int new_size = resize(len + size);
-	int to_add = new_size - head;
-
-	if (to_add > 0) {
-		char *dst_data = data();
-		memcpy(dst_data + head, str, to_add);
-		dst_data[head + to_add] = 0;
-	}
-}
-
-void String::add_and_escape(const char *str, int size) {
-	int head = len;
-	resize(len + size);
-
-	for (int i = 0; str[i] && i < size; i++) {
-		char c = str[i];
-		if (NEEDS_ESCAPE(c)) {
-			int h = head + 6;
-			if (h+1 >= capacity)
-				resize(h+1);
-
-			write_escaped_byte(c, data() + head);
-			head = h;
-		}
-		else {
-			int h = head + 1;
-			if (h+1 >= capacity)
-				resize(h+1);
-
-			data()[head] = c;
-			head = h;
-		}
-	}
-
-	len = head;
 }
 
 char *append_string(char *dst, char *src, int size) {

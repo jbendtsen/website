@@ -1,15 +1,21 @@
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <sys/signalfd.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <time.h>
 #include "website.h"
 
 #define LISTEN_BACKLOG 10
+
+static int cancel_fd = -1;
 
 void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size) {
 	char hdr[256];
@@ -132,6 +138,9 @@ void http_loop(File_Database& global, Filesystem& fs)
 		return;
 	}
 
+	int yes = 1;
+	setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
+
 	struct sockaddr_in addr = {0};
 	auto addr_ptr = (struct sockaddr *)&addr;
 
@@ -160,7 +169,21 @@ void http_loop(File_Database& global, Filesystem& fs)
 		fd_set set;
 		FD_ZERO(&set);
 		FD_SET(fd, &set);
-		select(fd + 1, &set, nullptr, nullptr, nullptr);
+
+		int highest_fd = fd;
+		if (cancel_fd >= 0) {
+			FD_SET(cancel_fd, &set);
+			if (cancel_fd > highest_fd)
+				highest_fd = cancel_fd;
+		}
+
+		select(highest_fd + 1, &set, nullptr, nullptr, nullptr);
+
+		if (cancel_fd >= 0 && FD_ISSET(cancel_fd, &set)) {
+			log_info("Exiting");
+			close(fd);
+			break;
+		}
 
 		int flags = fcntl(fd, F_GETFL);
 		flags |= O_NONBLOCK;
@@ -174,6 +197,14 @@ void http_loop(File_Database& global, Filesystem& fs)
 }
 
 int main() {
+	sigset_t sig_mask = {0};
+
+	sigemptyset(&sig_mask);
+	sigaddset(&sig_mask, SIGINT);
+	sigprocmask(SIG_BLOCK, &sig_mask, nullptr);
+
+	cancel_fd = signalfd(-1, &sig_mask, 0);
+
 	init_logger();
 
 	File_Database global;
@@ -187,11 +218,15 @@ int main() {
 
 #ifdef DEBUG
 	while (true) {
-		serve_request(STDOUT_FILENO, global, fs);
+		log_info("");
+		if (serve_request(STDOUT_FILENO, global, fs) != 0)
+			break;
 	}
 #else
 	http_loop(global, fs);
 #endif
+
+	if (cancel_fd >= 0) close(cancel_fd);
 
 	delete[] list_dir_buffer;
 

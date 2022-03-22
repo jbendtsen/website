@@ -4,6 +4,16 @@ article p {
 article h1, article h2, article h3 {
 	font-family: Noto Sans Mono, Source Code Pro, monospace;
 }
+.blog {
+	margin: auto;
+	max-width: 90%;
+	width: 50em;
+	color: #141414;
+}
+.blog div {
+	padding: 0.5em 0.5em 0.5em 2em;
+}
+
 .italic {
 	font-style: oblique;
 }
@@ -21,23 +31,15 @@ article h1, article h2, article h3 {
 	font-size: 125%;
 	margin: 1.5em;
 }
-article {
-	margin: auto;
-	max-width: 90%;
-	width: 50em;
-	color: #141414;
-}
-article div {
-	padding: 0.5em 0.5em 0.5em 2em;
-}
 .code, .code-java, .code-js {
-	white-space: pre-wrap;
+	white-space: pre;
+	tab-size: 4;
 	font-family: monospace;
 	font-size: 110%;
 	background-color: #eee;
 }
 .quote {
+	white-space: pre;
 	font-style: oblique;
-	white-space: pre-wrap;
 	background-color: #eee;
 }

@@ -28,10 +28,9 @@ const char *closing_tag_strings[] = {
 	"</h2>",
 };
 
-Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit) {
+Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit)
+{
 	Space title_space = {0};
-
-	article.add("<article>");
 
 	int closing_tags[N_CLOSING_TAGS] = {0};
 	int tag_level = 0;
@@ -232,8 +231,6 @@ Space produce_article_html(Expander& article, const char *input, int in_sz, long
 		article.add("</p>");
 	for (int i = 0; i < div_levels; i++)
 		article.add("</div>");
-
-	article.add("</article>");
 
 	return title_space;
 }
