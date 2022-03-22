@@ -127,19 +127,35 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 void http_loop(File_Database& global, Filesystem& fs)
 {
 	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sock_fd < 0) {
+		log_error("socket() failed, errno={d}\n", errno);
+		return;
+	}
 
-	struct sockaddr_in addr;
+	struct sockaddr_in addr = {0};
 	auto addr_ptr = (struct sockaddr *)&addr;
+
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port = htons(8080);
 
-	bind(sock_fd, addr_ptr, sizeof(addr));
-	listen(sock_fd, LISTEN_BACKLOG);
+	if (bind(sock_fd, addr_ptr, sizeof(addr)) < 0) {
+		log_error("bind() failed, errno={d}\n", errno);
+		return;
+	}
+
+	if (listen(sock_fd, LISTEN_BACKLOG) < 0) {
+		log_error("listen() failed, errno={d}\n", errno);
+		return;
+	}
 
 	while (true) {
 		socklen_t addr_len = sizeof(addr);
 		int fd = accept(sock_fd, addr_ptr, &addr_len);
+		if (fd < 0) {
+			log_error("accept() failed, errno={d}\n", errno);
+			break;
+		}
 
 		fd_set set;
 		FD_ZERO(&set);

@@ -496,6 +496,8 @@ void write_http_response(int fd, const char *status, const char *content_type, c
 
 Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit);
 
+void produce_markdown_html(Expander& html, const char *input, int in_sz, int line_limit);
+
 void serve_404(Filesystem& fs, int fd);
 void serve_home_page(Filesystem& fs, int fd);
 void serve_blog_overview(Filesystem& fs, int fd);

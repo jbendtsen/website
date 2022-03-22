@@ -10,26 +10,27 @@ nav {
 	display: flex;
 	flex-direction: row;
 	margin: auto;
+	padding-left: 0.5em;
 	height: 100%;
-	max-width: calc(80% + 2.5em);
 }
 .nav-item {
 	display: flex;
 	flex-direction: column-reverse;
+	font-family: serif;
 	text-decoration: none;
 	padding-left: 1em;
 	padding-right: 1em;
 }
 .nav-item :hover {
-	color: #111;
+	color: #222;
 	text-decoration: underline;
 }
 .nav-item.nav-item-cur span {
-	color: #111;
+	color: #222;
 }
 .nav-item span {
 	color: #fff;
-	-webkit-text-stroke: 0.02em #111;
+	-webkit-text-stroke: 0.02em #222;
 	font-size: 2em;
 	font-weight: bold;
 	margin-bottom: 0.3em;
