@@ -114,13 +114,38 @@ static void render_readme(Expander& html, Filesystem& fs, int proj_dir)
 
 static void add_directory_html(Expander& html, Filesystem& fs, int didx)
 {
-	
+	if (didx < 0)
+		return;
+
+	html.add("<ul>");
+
+	int d = fs.dirs[didx].first_dir.alpha;
+	while (d > 0) {
+		html.add("<li><details><summary>");
+		html.add_and_escape(fs.name_pool.at(fs.dirs[d].name_idx));
+		html.add("</summary>");
+
+		add_directory_html(html, fs, d);
+		html.add("</details></li>");
+
+		d = fs.dirs[d].next.alpha;
+	}
+
+	int f = fs.dirs[didx].first_file.alpha;
+	while (f > 0) {
+		html.add("<li>");
+		html.add_and_escape(fs.name_pool.at(fs.files[f].name_idx));
+		html.add("</li>");
+		f = fs.files[f].next.alpha;
+	}
+
+	html.add("</ul>");
 }
 
 void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 {
 	Expander html;
-	html.add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>");
+	html.add("<!DOCTYPE html><html class=\"full\"><head><meta charset=\"UTF-8\"><title>");
 	html.add_and_escape(name, name_len);
 	html.add("</title><style>");
 
@@ -128,7 +153,8 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	fs.add_file_to_html(html, "client/article.css");
 	fs.add_file_to_html(html, "client/projects.css");
 
-	html.add("</style></head><body>");
+	html.add("</style></head><body class=\"full\">");
+	html.add("<div id=\"proj-screen\">");
 	add_banner(fs, html, NAV_IDX_PROJECTS);
 
 	String path;
@@ -150,8 +176,8 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		return;
 	}
 
-	html.add("<div id=\"proj-screen\"><div id=\"proj-sidebar\"><p>lol</p>");
-
+	html.add("<div id=\"proj-main\"><div id=\"proj-sidebar\">");
+	add_directory_html(html, fs, proj_dir);
 	html.add("</div><div id=\"proj-content\">");
 
 	if (path_start < name_len) {
@@ -173,7 +199,7 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		render_readme(html, fs, proj_dir);
 	}
 
-	html.add("</div></div></body></html>");
+	html.add("</div></div></div></body></html>");
 
 	int out_sz = 0;
 	char *out = html.get(&out_sz);
