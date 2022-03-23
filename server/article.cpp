@@ -3,6 +3,8 @@
 #include <ctime>
 #include "website.h"
 
+// TODO: replace <span class="italic"> with <em>, <span class="bold"> with <strong>
+
 #define CMD_BLOCK     1
 #define CMD_TITLE     2
 #define CMD_SUBTITLE  3
@@ -22,7 +24,7 @@ static const char *months[] = {
 	"December"
 };
 
-const char *closing_tag_strings[] = {
+static const char *closing_tag_strings[] = {
 	"</div>",
 	"</h1>",
 	"</h2>",
@@ -202,7 +204,10 @@ Space produce_article_html(Expander& article, const char *input, int in_sz, long
 									const char *kinds[] = {"th", "st", "nd", "rd"};
 									char datebuf[128];
 									String date_str(datebuf, 128);
-									date_str.reformat("<p class=\"italic\">{d}{s} {s}, {d}</p>", date->tm_mday, kinds[day_kind], months[date->tm_mon], 1900 + date->tm_year);
+									date_str.reformat(
+										"<p class=\"italic\">{d}{s} {s}, {d}</p>",
+										date->tm_mday, kinds[day_kind], months[date->tm_mon], 1900 + date->tm_year
+									);
 
 									article.add(date_str.data(), date_str.len);
 									should_start_para = true;

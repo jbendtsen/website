@@ -51,14 +51,30 @@
 	left: 0;
 	top: 0;
 	bottom: 0;
-	width: 20em;
-	overflow: scroll;
+	width: min(20em, 25%);
+	border-right: 1px solid #ccc;
+	overflow: auto;
+}
+#proj-sidebar ul {
+	list-style-type: none;
+	padding-left: 1.5em;
+	font-family: monospace;
+}
+#proj-sidebar li {
+	font-style: oblique;
+}
+.proj-sidebar-item {
+	cursor: pointer;
+	user-select: none;
+}
+.proj-sidebar-item:hover {
+	text-decoration: underline;
 }
 #proj-content {
 	position: absolute;
-	left: 20em;
+	left: min(20em, 25%);
 	right: 0;
 	top: 0;
 	bottom: 0;
-	overflow: scroll;
+	overflow: auto;
 }

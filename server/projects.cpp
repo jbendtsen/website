@@ -34,11 +34,6 @@ static void render_code_article(Expander& html, const char *input, int in_sz)
 	html.add("</div></article>");
 }
 
-void produce_markdown_html(Expander& html, const char *input, int in_sz, int line_limit)
-{
-	render_code_article(html, input, in_sz);
-}
-
 void serve_projects_overview(Filesystem& fs, int fd)
 {
 	Expander html;
@@ -121,19 +116,19 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx)
 
 	int d = fs.dirs[didx].first_dir.alpha;
 	while (d > 0) {
-		html.add("<li><details><summary>");
+		html.add("<details><summary class=\"proj-sidebar-item\">");
 		html.add_and_escape(fs.name_pool.at(fs.dirs[d].name_idx));
 		html.add("</summary>");
 
 		add_directory_html(html, fs, d);
-		html.add("</details></li>");
+		html.add("</details>");
 
 		d = fs.dirs[d].next.alpha;
 	}
 
 	int f = fs.dirs[didx].first_file.alpha;
 	while (f > 0) {
-		html.add("<li>");
+		html.add("<li class=\"proj-sidebar-item\">");
 		html.add_and_escape(fs.name_pool.at(fs.files[f].name_idx));
 		html.add("</li>");
 		f = fs.files[f].next.alpha;

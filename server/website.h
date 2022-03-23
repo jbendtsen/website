@@ -112,6 +112,8 @@ struct Expander {
 	int add(const char *str, int add_len = 0);
 	void add_and_escape(const char *str, int size = 0);
 
+	void reserve_extra(int bytes);
+
 	int prepend_string_trunc(const char *add, int add_len);
 
 	int prepend_string_overlap(const char *add, int add_len);

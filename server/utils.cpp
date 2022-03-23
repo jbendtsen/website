@@ -81,6 +81,16 @@ void Expander::add_and_escape(const char *str, int size) {
 	head = pos;
 }
 
+void Expander::reserve_extra(int bytes)
+{
+	if (bytes <= 0)
+		return;
+
+	int h = head;
+	add(nullptr, bytes);
+	head = h;
+}
+
 int Expander::prepend_string_trunc(const char *add, int add_len) {
 	if (start <= 0)
 		return 0;
