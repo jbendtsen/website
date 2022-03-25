@@ -53,11 +53,15 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 	int quote_level = 0;
 	int code_level = 0;
 	int list_level = 0;
+	int new_list_level = 0;
 	int consq_backticks = 0;
 	int consq_asterisks = 0;
 	int leading_spaces = 0;
 	int nl_count = 0;
+	int prev_line_len = 0;
+	int prev_nl_pos = 0;
 	int code_type = 0;
+	bool should_not_open_tag = false;
 	bool started_line = false;
 	bool is_italic = false;
 	bool is_bold = false;
@@ -73,20 +77,51 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 		chbuf[1] = 0;
 
 		if (!started_line && code_type != 1) {
+			should_process = false;
 			if (c == ' ') {
 				leading_spaces++;
-				should_process = false;
 			}
 			else if (c == '\t') {
 				leading_spaces += 4;
-				should_process = false;
 			}
 			else if (code_type == 0 && c == '>') {
 				quote_level++;
-				should_process = false;
 			}
 			else if (code_type == 0 && (c == '-' || c == '+')) {
-				int new_list_level = (leading_spaces / 4) + 1;
+				new_list_level = (leading_spaces / 4) + 1;
+				started_line = true;
+			}
+			else if (code_type == 0 && c == '#') {
+				header_level++;
+				if (header_level > 6)
+					started_line = true;
+			}
+			else if (c != '\n') {
+				started_line = true;
+				should_process = true;
+			}
+
+			if (started_line) {
+				if (tag_cursor > 0) {
+					int prev_cursor = tag_cursor;
+					int tag = tag_levels[tag_cursor];
+					if (tag == TAG_P && prev_line_len > 1) {
+						tryhard(html, chbuf, "<br>", __LINE__, i);
+						should_not_open_tag = true;
+					}
+					else {
+						const char *tag_str = closing_tag_strings[tag];
+						tag_cursor--;
+						if (tag_cursor < 0) {
+							tag_cursor = 0;
+							tag_levels[0] = 0;
+						}
+
+						//log_info("prev_cursor={d}", prev_cursor);
+						tryhard(html, chbuf, tag_str, __LINE__, i);
+					}
+				}
+
 				if (new_list_level > list_level) {
 					for (int j = 0; j < new_list_level - list_level; j++) {
 						tryhard(html, chbuf, "<ul>", __LINE__, i);
@@ -98,82 +133,52 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 					}
 				}
 				list_level = new_list_level;
-				started_line = true;
-				should_process = false;
-			}
-			else {
-				for (int j = 0; j < list_level; j++) {
-					tryhard(html, chbuf, "</ul>", __LINE__, i);
+
+				int prev_code_type = code_type;
+				if (quote_level == 0 && list_level == 0 && leading_spaces >= 4) {
+					code_type = 2;
+				}
+				else if (code_type == 2) {
+					code_type = 0;
 				}
 
-				list_level = 0;
-
-				if (c != '#') {
-					int prev_code_type = code_type;
-					if (quote_level == 0 && list_level == 0 && leading_spaces >= 4) {
-						code_type = 2;
-					}
-					else if (code_type == 2) {
-						code_type = 0;
-					}
-
-					if (!prev_code_type && code_type) {
-						tryhard(html, chbuf, "<code>", __LINE__, i);
-					}
-					else if (prev_code_type && !code_type) {
-						tryhard(html, chbuf, "</code>", __LINE__, i);
-					}
-
-					started_line = true;
+				if (!prev_code_type && code_type) {
+					tryhard(html, chbuf, "<code>", __LINE__, i);
 				}
-			}
+				else if (prev_code_type && !code_type) {
+					tryhard(html, chbuf, "</code>", __LINE__, i);
+				}
 
-			if (c == '#') {
-				header_level++;
-				if (header_level > 6) {
+				if (!should_not_open_tag) {
 					if (tag_cursor < 15)
 						tag_cursor++;
 
-					if (list_level > 0) {
-						tag_levels[tag_cursor] = TAG_LI;
-						tryhard(html, chbuf, "<li>", __LINE__, i);
+					if (header_level > 0 && header_level <= 6) {
+						char tag[8];
+						tag[0] = '<';
+						tag[1] = 'h';
+						tag[2] = '0' + header_level;
+						tag[3] = '>';
+						tag[4] = 0;
+						tryhard(html, chbuf, tag, __LINE__, i);
+
+						tag_levels[tag_cursor] = header_level;
 					}
 					else {
-						tag_levels[tag_cursor] = TAG_P;
-						tryhard(html, chbuf, "<p>", __LINE__, i);
+						if (list_level > 0) {
+							tag_levels[tag_cursor] = TAG_LI;
+							tryhard(html, chbuf, "<li>", __LINE__, i);
+						}
+						else {
+							tag_levels[tag_cursor] = TAG_P;
+							tryhard(html, chbuf, "<p>", __LINE__, i);
+						}
 					}
+				}
+
+				if (header_level > 6)
 					tryhard(html, chbuf, "#######", __LINE__, i);
-					started_line = true;
-				}
-				should_process = false;
-			}
-			else {
-				if (tag_cursor < 15)
-					tag_cursor++;
 
-				if (header_level > 0 && header_level <= 6) {
-					char tag[8];
-					tag[0] = '<';
-					tag[1] = 'h';
-					tag[2] = '0' + header_level;
-					tag[3] = '>';
-					tag[4] = 0;
-					tryhard(html, chbuf, tag, __LINE__, i);
-
-					tag_levels[tag_cursor] = header_level;
-				}
-				else {
-					if (list_level > 0) {
-						tag_levels[tag_cursor] = TAG_LI;
-						tryhard(html, chbuf, "<li>", __LINE__, i);
-					}
-					else {
-						tag_levels[tag_cursor] = TAG_P;
-						tryhard(html, chbuf, "<p>", __LINE__, i);
-					}
-				}
-
-				started_line = true;
 				header_level = 0;
 			}
 		}
@@ -221,21 +226,8 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 
 		if (should_process) {
 			bool should_add_c = true;
-			if (c == '\n') {
-				int prev_cursor = tag_cursor;
-
-				const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
-				tag_cursor--;
-				if (tag_cursor < 0) {
-					tag_cursor = 0;
-					tag_levels[0] = 0;
-				}
-
-				//log_info("prev_cursor={d}", prev_cursor);
-				tryhard(html, chbuf, tag, __LINE__, i);
-			}
-			else if (!was_esc) {
-				should_add_c = c != '\\' && c != '*' && c != '`';
+			if (!was_esc) {
+				should_add_c = c != '\\' && c != '\n' && c != '*' && c != '`';
 			}
 
 			if (should_add_c) {
@@ -257,9 +249,14 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 
 		if (c == '\n') {
 			started_line = false;
+			should_not_open_tag = false;
 			quote_level = 0;
 			header_level = 0;
 			leading_spaces = 0;
+			new_list_level = 0;
+
+			prev_line_len = i - prev_nl_pos - 1;
+			prev_nl_pos = i;
 
 			nl_count++;
 			if (line_limit > 0 && nl_count >= line_limit)
@@ -267,5 +264,12 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 		}
 
 		was_esc = c == '\\' && !was_esc;
+	}
+
+	while (tag_cursor > 0) {
+		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
+		tag_cursor--;
+
+		tryhard(html, chbuf, tag, __LINE__, -1);
 	}
 }
