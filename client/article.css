@@ -13,6 +13,9 @@ article h1, article h2, article h3 {
 .blog div {
 	padding: 0.5em 0.5em 0.5em 2em;
 }
+.proj-md {
+	margin-left: 1em;
+}
 
 .italic {
 	font-style: oblique;

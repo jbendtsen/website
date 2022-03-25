@@ -260,7 +260,6 @@ union FS_Next {
 struct FS_Directory {
 	FS_Next next;
 	int parent;
-	u32 flags;
 	int name_idx;
 	long created_time;
 	long modified_time;
@@ -271,7 +270,6 @@ struct FS_Directory {
 		return {
 			.next = {-1, -1, -1},
 			.parent = -1,
-			.flags = 0,
 			.name_idx = -1,
 			.created_time = 0,
 			.modified_time = 0,
@@ -284,7 +282,6 @@ struct FS_Directory {
 struct FS_File {
 	FS_Next next;
 	int parent;
-	u32 flags;
 	int name_idx;
 	long created_time;
 	long modified_time;
@@ -296,7 +293,6 @@ struct FS_File {
 		return {
 			.next = {-1, -1, -1},
 			.parent = -1,
-			.flags = 0,
 			.name_idx = -1,
 			.created_time = 0,
 			.modified_time = 0,

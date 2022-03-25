@@ -75,10 +75,12 @@ void serve_projects_overview(Filesystem& fs, int fd)
 		html.add("\"><div class=\"proj-overlay\"></div>");
 
 		fs.refresh_file(f);
+		html.add("<article class=\"proj-md\">");
 		produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, PROJECT_PREVIEW_LINE_LIMIT);
-		html.add("</a>");
+		html.add("</article></a>");
 
 		proj = fs.dirs[proj].next.alpha;
+		log_info("proj.next = {d}", proj);
 	}
 
 	html.add("</div></body></html>");
@@ -86,25 +88,6 @@ void serve_projects_overview(Filesystem& fs, int fd)
 	int out_sz = 0;
 	char *out = html.get(&out_sz);
 	write_http_response(fd, "200 OK", "text/html", out, out_sz);
-}
-
-static void render_readme(Expander& html, Filesystem& fs, int proj_dir)
-{
-	int f = fs.dirs[proj_dir].first_file.alpha;
-	while (f >= 0) {
-		FS_File& file = fs.files[f];
-		char *fname = fs.name_pool.at(file.name_idx);
-
-		if (!caseless_match(fname, "readme.md")) {
-			f = file.next.alpha;
-			continue;
-		}
-		break;
-	}
-	if (f >= 0) {
-		fs.refresh_file(f);
-		produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, 0);
-	}
 }
 
 static void add_directory_html(Expander& html, Filesystem& fs, int didx)
@@ -191,7 +174,23 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		}
 	}
 	else {
-		render_readme(html, fs, proj_dir);
+		int f = fs.dirs[proj_dir].first_file.alpha;
+		while (f >= 0) {
+			FS_File& file = fs.files[f];
+			char *fname = fs.name_pool.at(file.name_idx);
+
+			if (!caseless_match(fname, "readme.md")) {
+				f = file.next.alpha;
+				continue;
+			}
+			break;
+		}
+		if (f >= 0) {
+			fs.refresh_file(f);
+			html.add("<article class=\"proj-md\">");
+			produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, 0);
+			html.add("</article>");
+		}
 	}
 
 	html.add("</div></div></div></body></html>");
