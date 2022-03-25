@@ -141,6 +141,10 @@ void http_loop(File_Database& global, Filesystem& fs)
 	int yes = 1;
 	setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
+	int flags = fcntl(sock_fd, F_GETFL);
+	flags |= O_NONBLOCK;
+	fcntl(sock_fd, F_SETFL, flags);
+
 	struct sockaddr_in addr = {0};
 	auto addr_ptr = (struct sockaddr *)&addr;
 
@@ -159,18 +163,11 @@ void http_loop(File_Database& global, Filesystem& fs)
 	}
 
 	while (true) {
-		socklen_t addr_len = sizeof(addr);
-		int fd = accept(sock_fd, addr_ptr, &addr_len);
-		if (fd < 0) {
-			log_error("accept() failed, errno={d}\n", errno);
-			break;
-		}
-
 		fd_set set;
 		FD_ZERO(&set);
-		FD_SET(fd, &set);
+		FD_SET(sock_fd, &set);
 
-		int highest_fd = fd;
+		int highest_fd = sock_fd;
 		if (cancel_fd >= 0) {
 			FD_SET(cancel_fd, &set);
 			if (cancel_fd > highest_fd)
@@ -181,9 +178,19 @@ void http_loop(File_Database& global, Filesystem& fs)
 
 		if (cancel_fd >= 0 && FD_ISSET(cancel_fd, &set)) {
 			log_info("Exiting");
-			close(fd);
 			break;
 		}
+
+		socklen_t addr_len = sizeof(addr);
+		int fd = accept(sock_fd, addr_ptr, &addr_len);
+		if (fd < 0) {
+			log_error("accept() failed, errno={d}\n", errno);
+			break;
+		}
+
+		FD_ZERO(&set);
+		FD_SET(fd, &set);
+		select(fd + 1, &set, nullptr, nullptr, nullptr);
 
 		int flags = fcntl(fd, F_GETFL);
 		flags |= O_NONBLOCK;

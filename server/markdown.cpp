@@ -173,6 +173,7 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 					}
 				}
 
+				started_line = true;
 				header_level = 0;
 			}
 		}
