@@ -347,15 +347,15 @@ void add_banner(Filesystem& fs, Container& html, int hl_idx)
 {
 	html.add("<nav><div id=\"inner-nav\"><a class=\"nav-item");
 	if (hl_idx == 0) html.add(" nav-item-cur");
-	html.add("\" href=\"/\"><span>Home");
+	html.add("\" href=\"/\"><span>HOME");
 
 	html.add("</span></a><a class=\"nav-item");
 	if (hl_idx == 1) html.add(" nav-item-cur");
-	html.add("\" href=\"/blog\"><span>Blog");
+	html.add("\" href=\"/blog\"><span>BLOG");
 
 	html.add("</span></a><a class=\"nav-item");
 	if (hl_idx == 2) html.add(" nav-item-cur");
-	html.add("\" href=\"/projects\"><span>Projects");
+	html.add("\" href=\"/projects\"><span>PROJECTS");
 
 	html.add("</span></a></div></nav>");
 }

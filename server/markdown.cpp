@@ -263,7 +263,10 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 				break;
 		}
 
-		was_esc = c == '\\' && !was_esc;
+		if (!code_type)
+			was_esc = c == '\\' && !was_esc;
+		else
+			was_esc = false;
 	}
 
 	while (tag_cursor > 0) {

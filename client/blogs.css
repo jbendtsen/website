@@ -17,9 +17,9 @@
 	margin-bottom: 1em;
 }
 .article-column a:hover {
-	background-color: #eee;
-	padding: 0;
-	border: 1px solid #000;
+	background-color: #e8eaec;
+	padding-bottom: 1px;
+	/*border: 1px solid #000;*/
 }
 .article-left {
 	margin-right: 1em;

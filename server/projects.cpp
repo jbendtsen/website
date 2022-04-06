@@ -4,13 +4,29 @@
 
 static void render_code_article(Expander& html, const char *input, int in_sz)
 {
-	html.add("<article><div class=\"code\">");
+	html.add("<article><div class=\"file-code\"><code>");
 
 	int start = 0;
 	bool was_spec = false;
 	for (int i = 0; i < in_sz; i++) {
 		char c = input[i];
-		if (NEEDS_ESCAPE(c)) {
+		if (c == '\n' || c == '\t') {
+			if (i > start) {
+				if (was_spec)
+					html.add(&input[start], i-start);
+				else
+					html.add_and_escape(&input[start], i-start);
+
+				start = i;
+				while (start < in_sz && (input[start] == '\n' || input[start] == '\t'))
+					start++;
+			}
+			if (c == '\n')
+				html.add("</code><code>");
+			else if (c == '\t')
+				html.add("    ");
+		}
+		else if (NEEDS_ESCAPE(c)) {
 			if (!was_spec && i > start) {
 				html.add(&input[start], i-start);
 				start = i;
@@ -26,12 +42,14 @@ static void render_code_article(Expander& html, const char *input, int in_sz)
 		}
 	}
 
-	if (was_spec)
-		html.add_and_escape(&input[start], in_sz-start);
-	else
-		html.add(&input[start], in_sz-start);
+	if (start < in_sz) {
+		if (was_spec)
+			html.add_and_escape(&input[start], in_sz-start);
+		else
+			html.add(&input[start], in_sz-start);
+	}
 
-	html.add("</div></article>");
+	html.add("</code></div></article>");
 }
 
 void serve_projects_overview(Filesystem& fs, int fd)
@@ -90,7 +108,7 @@ void serve_projects_overview(Filesystem& fs, int fd)
 	write_http_response(fd, "200 OK", "text/html", out, out_sz);
 }
 
-static void add_directory_html(Expander& html, Filesystem& fs, int didx)
+static void add_directory_html(Expander& html, Filesystem& fs, int didx, char *path_buf, int path_len)
 {
 	if (didx < 0)
 		return;
@@ -99,11 +117,18 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx)
 
 	int d = fs.dirs[didx].first_dir.alpha;
 	while (d > 0) {
+		char *name = fs.name_pool.at(fs.dirs[d].name_idx);
+		int name_len = strlen(name);
+
 		html.add("<details><summary class=\"proj-sidebar-item\">");
-		html.add_and_escape(fs.name_pool.at(fs.dirs[d].name_idx));
+		html.add_and_escape(name, name_len);
 		html.add("</summary>");
 
-		add_directory_html(html, fs, d);
+		memcpy(&path_buf[path_len], name, name_len);
+		path_buf[path_len + name_len] = '/';
+
+		add_directory_html(html, fs, d, path_buf, path_len + name_len + 1);
+
 		html.add("</details>");
 
 		d = fs.dirs[d].next.alpha;
@@ -111,9 +136,16 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx)
 
 	int f = fs.dirs[didx].first_file.alpha;
 	while (f > 0) {
-		html.add("<li class=\"proj-sidebar-item\">");
-		html.add_and_escape(fs.name_pool.at(fs.files[f].name_idx));
-		html.add("</li>");
+		char *name = fs.name_pool.at(fs.files[f].name_idx);
+		int name_len = strlen(name);
+
+		html.add("<li class=\"proj-sidebar-item\"><a href=\"");
+		html.add_and_escape(path_buf, path_len);
+		html.add_and_escape(name);
+		html.add("\">");
+		html.add_and_escape(name);
+		html.add("</a></li>");
+
 		f = fs.files[f].next.alpha;
 	}
 
@@ -155,7 +187,21 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	}
 
 	html.add("<div id=\"proj-main\"><div id=\"proj-sidebar\">");
-	add_directory_html(html, fs, proj_dir);
+
+	html.add("<h2 id=\"proj-name\"><a href=\"/projects/");
+	html.add_and_escape(name, proj_len);
+	html.add("\">");
+	html.add_and_escape(name, proj_len);
+	html.add("</a></h2>");
+
+	char dir_path[1024];
+	memcpy(dir_path, "/projects/", 10);
+	memcpy(&dir_path[10], name, proj_len);
+	dir_path[10+proj_len] = '/';
+	dir_path[11+proj_len] = 0;
+
+	add_directory_html(html, fs, proj_dir, dir_path, 11+proj_len);
+
 	html.add("</div><div id=\"proj-content\">");
 
 	if (path_start < name_len) {

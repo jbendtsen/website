@@ -17,9 +17,9 @@
 	margin: 1em;
 }
 .proj-box:hover {
-	background-color: #eee;
+	background-color: #e8eaec;
 	padding: 0;
-	border: 1px solid #000;
+	border: 1px solid #ccc;
 }
 .proj-box article {
 	position: relative;
@@ -55,15 +55,33 @@
 	bottom: 0;
 	width: min(20em, 25%);
 	border-right: 1px solid #ccc;
+	background-color: #f8f8f8;
 	overflow: auto;
+}
+#proj-name {
+	padding-left: 5%;
+	width: 90%;
+	overflow-wrap: break-word;
+}
+#proj-name a {
+	text-decoration: none;
+	color: #222;
+}
+#proj-name:hover {
+	text-decoration: underline;
 }
 #proj-sidebar ul {
 	list-style-type: none;
 	padding-left: 1.5em;
 	font-family: monospace;
+	color: #222;
 }
 #proj-sidebar li {
 	font-style: oblique;
+}
+#proj-sidebar a {
+	text-decoration: none;
+	color: #222;
 }
 .proj-sidebar-item {
 	cursor: pointer;
@@ -79,4 +97,27 @@
 	top: 0;
 	bottom: 0;
 	overflow: auto;
+}
+.file-code::before {
+	counter-reset: listing;
+}
+.file-code {
+	display: flex;
+	flex-direction: column;
+	white-space: pre;
+	tab-size: 4;
+	font-family: monospace;
+	font-size: 110%;
+}
+.file-code code::before {
+	content: counter(listing);
+	display: inline-block;
+	width: 4em;
+	padding-right: 1em;
+	margin-right: 1em;
+	text-align: right;
+	background-color: #e8eaec;
+}
+.file-code code {
+	counter-increment: listing;
 }
