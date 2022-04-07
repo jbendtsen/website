@@ -44,3 +44,13 @@ nav {
 	font-weight: bold;
 	margin-top: 0.3em;
 }
+.button:hover {
+	background-color: #28f;
+}
+.button {
+	font-family: sans-serif;
+	font-weight: bold;
+	background-color: #69d;
+	color: #f8f8f8;
+	padding: 0.8em;
+}

@@ -8,6 +8,8 @@ static void render_code_article(Expander& html, const char *input, int in_sz)
 
 	int start = 0;
 	bool was_spec = false;
+	char prev = 0;
+
 	for (int i = 0; i < in_sz; i++) {
 		char c = input[i];
 		if (c == '\n' || c == '\t') {
@@ -21,10 +23,14 @@ static void render_code_article(Expander& html, const char *input, int in_sz)
 				while (start < in_sz && (input[start] == '\n' || input[start] == '\t'))
 					start++;
 			}
-			if (c == '\n')
+
+			if (c == '\n') {
+				if (prev == '\n') html.add_and_escape(&c, 1);
 				html.add("</code><code>");
-			else if (c == '\t')
+			}
+			else if (c == '\t') {
 				html.add("    ");
+			}
 		}
 		else if (NEEDS_ESCAPE(c)) {
 			if (!was_spec && i > start) {
@@ -40,6 +46,8 @@ static void render_code_article(Expander& html, const char *input, int in_sz)
 			}
 			was_spec = false;
 		}
+
+		prev = c;
 	}
 
 	if (start < in_sz) {
@@ -98,7 +106,6 @@ void serve_projects_overview(Filesystem& fs, int fd)
 		html.add("</article></a>");
 
 		proj = fs.dirs[proj].next.alpha;
-		log_info("proj.next = {d}", proj);
 	}
 
 	html.add("</div></body></html>");
@@ -120,7 +127,8 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx, char *p
 		char *name = fs.name_pool.at(fs.dirs[d].name_idx);
 		int name_len = strlen(name);
 
-		html.add("<details><summary class=\"proj-sidebar-item\">");
+		// TODO: html.add("<details open>" instead of "<details>") if directory is ancestor of current file
+		html.add("<details><summary class=\"proj-tree-item\">");
 		html.add_and_escape(name, name_len);
 		html.add("</summary>");
 
@@ -139,7 +147,7 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx, char *p
 		char *name = fs.name_pool.at(fs.files[f].name_idx);
 		int name_len = strlen(name);
 
-		html.add("<li class=\"proj-sidebar-item\"><a href=\"");
+		html.add("<li class=\"proj-tree-item\"><a href=\"");
 		html.add_and_escape(path_buf, path_len);
 		html.add_and_escape(name);
 		html.add("\">");
@@ -154,6 +162,21 @@ static void add_directory_html(Expander& html, Filesystem& fs, int didx, char *p
 
 void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 {
+	String path;
+	path.add("content/projects/");
+
+	if (name_len > 4) {
+		char *e = &name[name_len-4];
+		if (e[0] == '.' && (e[1] == 'z' || e[1] == 'Z') && (e[2] == 'i' || e[2] == 'I') && (e[3] == 'p' || e[3] == 'P')) {
+			path.add(name, name_len - 4);
+			int dir_idx = fs.lookup_dir(path.data());
+			if (dir_idx >= 0) {
+				write_zip_to_socket(fs, dir_idx, fd);
+				return;
+			}
+		}
+	}
+
 	Expander html;
 	html.add("<!DOCTYPE html><html class=\"full\"><head><meta charset=\"UTF-8\"><title>");
 	html.add_and_escape(name, name_len);
@@ -166,9 +189,6 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	html.add("</style></head><body class=\"full\">");
 	html.add("<div id=\"proj-screen\">");
 	add_banner(fs, html, NAV_IDX_PROJECTS);
-
-	String path;
-	path.add("content/projects/");
 
 	int proj_len = 0;
 	while (proj_len < name_len && name[proj_len] && name[proj_len] != '/')
@@ -194,6 +214,9 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	html.add_and_escape(name, proj_len);
 	html.add("</a></h2>");
 
+	html.add("<hr />");
+	html.add("<div id=\"proj-tree\">");
+
 	char dir_path[1024];
 	memcpy(dir_path, "/projects/", 10);
 	memcpy(&dir_path[10], name, proj_len);
@@ -202,7 +225,12 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 
 	add_directory_html(html, fs, proj_dir, dir_path, 11+proj_len);
 
-	html.add("</div><div id=\"proj-content\">");
+	html.add("</div><hr />");
+	html.add("<a id=\"proj-download\" href=\"/projects/");
+	html.add_and_escape(name, proj_len);
+	html.add(".zip\"><div class=\"button\">DOWNLOAD</div>");
+
+	html.add("</div></a><div id=\"proj-content\">");
 
 	if (path_start < name_len) {
 		path.add('/');

@@ -17,13 +17,16 @@
 
 static int cancel_fd = -1;
 
+void get_datetime(char *buf) {
+	time_t t = time(nullptr);
+	struct tm *utc = gmtime(&t);
+	strftime(buf, 96, "%a, %d %m %Y %H:%M:%S", utc);
+}
+
 void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size) {
 	char hdr[256];
 	char datetime[96];
-
-	time_t t = time(nullptr);
-	struct tm *utc = gmtime(&t);
-	strftime(datetime, 96, "%a, %d %m %Y %H:%M:%S", utc);
+	get_datetime(datetime);
 
 	if (!data)
 		size = 0;

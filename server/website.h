@@ -169,6 +169,10 @@ struct Vector {
 		resize(old_size + n);
 		memcpy(&data[old_size], array, n * sizeof(T));
 	}
+
+	void clear() {
+		size = 0;
+	}
 };
 
 template <typename T>
@@ -287,6 +291,7 @@ struct FS_File {
 	long modified_time;
 	u8 *buffer;
 	int size;
+	u32 crc;
 	long last_reloaded;
 
 	static FS_File make_empty() {
@@ -314,6 +319,7 @@ struct Filesystem {
 	Expander name_pool;
 	Vector<FS_Directory> dirs;
 	Vector<FS_File> files;
+	int total_name_tree_size;
 
 	Filesystem() = default;
 	~Filesystem() {
@@ -339,6 +345,8 @@ struct Filesystem {
 	int init_at(const char *initial_path, char *list_dir_buffer);
 	int lookup_file(const char *path);
 	int lookup_dir(const char *path);
+	void walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, void*), void (*file_cb)(Filesystem*, int, void*), void *cb_data);
+	int get_path(char *buf, int ancestor, int parent, char *name);
 	int refresh_file(int idx);
 };
 
@@ -360,7 +368,10 @@ void add_banner(Filesystem& fs, Container& html, int hl_idx)
 	html.add("</span></a></div></nav>");
 }
 
+void get_datetime(char *buf);
 void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
+
+void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd);
 
 Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit);
 
