@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -158,8 +157,8 @@ static void write_dir_central(Filesystem *fs, int didx, void *data)
 	p += 8;
 	*p++ = 0x10;
 	*p++ = 0;
-	*p++ = 0xb6; // permissions 1: __w-rw-rw-
-	*p++ = 0x41; // permissions 2: dr________
+	*p++ = 0xb6; // permissions 1:   w-rw-rw-
+	*p++ = 0x41; // permissions 2: dr
 	*p++ = (u8)hdr->cur_offset;
 	*p++ = (u8)(hdr->cur_offset >> 8);
 	*p++ = (u8)(hdr->cur_offset >> 16);
@@ -202,8 +201,8 @@ static void write_file_central(Filesystem *fs, int fidx, void *data)
 	*p++ = (u8)name_len;
 	*p++ = (u8)(name_len >> 8);
 	p += 10;
-	*p++ = 0xb6;
-	*p++ = 0x81;
+	*p++ = 0xb6; // permissions 1:   w-rw-rw-
+	*p++ = 0x81; // permissions 2: -r
 	*p++ = (u8)hdr->cur_offset;
 	*p++ = (u8)(hdr->cur_offset >> 8);
 	*p++ = (u8)(hdr->cur_offset >> 16);

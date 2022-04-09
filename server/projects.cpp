@@ -77,6 +77,9 @@ void serve_projects_overview(Filesystem& fs, int fd)
 	int projects = fs.lookup_dir("content/projects");
 	int proj = fs.dirs[projects].first_dir.alpha;
 
+	String md_path;
+	md_path.add("content/projects");
+
 	while (proj >= 0) {
 		int f = fs.dirs[proj].first_file.alpha;
 		while (f >= 0) {
@@ -100,11 +103,16 @@ void serve_projects_overview(Filesystem& fs, int fd)
 		html.add_and_escape(pname, 0);
 		html.add("\"><div class=\"proj-overlay\"></div>");
 
+		md_path.add("/");
+		md_path.add(pname);
+		int pname_len = strlen(pname);
+
 		fs.refresh_file(f);
 		html.add("<article class=\"proj-md\">");
-		produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, PROJECT_PREVIEW_LINE_LIMIT);
+		produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, md_path.data(), PROJECT_PREVIEW_LINE_LIMIT);
 		html.add("</article></a>");
 
+		md_path.scrub(pname_len + 1);
 		proj = fs.dirs[proj].next.alpha;
 	}
 
@@ -236,6 +244,7 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		path.add('/');
 		path.add(&name[path_start], name_len - path_start);
 		int fidx = fs.lookup_file(path.data());
+		log_info("works: {s}", path.data());
 
 		if (fidx < 0) {
 			html.add("<article><h1>Could not open file: ");
@@ -262,7 +271,7 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		if (f >= 0) {
 			fs.refresh_file(f);
 			html.add("<article class=\"proj-md\">");
-			produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, 0);
+			produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0);
 			html.add("</article>");
 		}
 	}

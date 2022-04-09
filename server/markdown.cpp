@@ -20,30 +20,7 @@ static const char *closing_tag_strings[] = {
 	"</li>",
 };
 
-static void tryhard(Expander& html, char *chbuf, const char *str, int line, int idx) {
-	int i = 0;
-	for ( ; i < 8 && chbuf[i]; i++) {
-		char c = chbuf[i];
-		if (c != '\n' && c != '\t' && (c < 0x20 || c >= 0x7f)) {
-			log_info("Error on line {d} at position {d}\n", line, idx);
-		}
-	}
-	if (i == 8) {
-		log_info("Overflow on line {d} at position {d}\n", line, idx);
-	}
-
-	char c = html.buf[html.head-1];
-	if (c != '\n' && c != '\t' && (c < 0x20 || c >= 0x7f))
-		log_info("Non-ascii character before line {d} at position {d}\n", line, idx);
-
-	html.add(str);
-
-	c = html.buf[html.head-1];
-	if (c != '\n' && c != '\t' && (c < 0x20 || c >= 0x7f))
-		log_info("Non-ascii character after line {d} at position {d}\n", line, idx);
-}
-
-void produce_markdown_html(Expander& html, const char *input, int in_sz, int line_limit)
+void produce_markdown_html(Expander& html, const char *input, int in_sz, const char *path, int line_limit)
 {
 	html.reserve_extra(in_sz);
 
@@ -66,6 +43,7 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 	bool is_italic = false;
 	bool is_bold = false;
 	bool was_esc = false;
+	char prev = 0;
 
 	char chbuf[8];
 
@@ -106,7 +84,7 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 					int prev_cursor = tag_cursor;
 					int tag = tag_levels[tag_cursor];
 					if (tag == TAG_P && prev_line_len > 1) {
-						tryhard(html, chbuf, "<br>", __LINE__, i);
+						html.add("<br>");
 						should_not_open_tag = true;
 					}
 					else {
@@ -118,18 +96,18 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 						}
 
 						//log_info("prev_cursor={d}", prev_cursor);
-						tryhard(html, chbuf, tag_str, __LINE__, i);
+						html.add(tag_str);
 					}
 				}
 
 				if (new_list_level > list_level) {
 					for (int j = 0; j < new_list_level - list_level; j++) {
-						tryhard(html, chbuf, "<ul>", __LINE__, i);
+						html.add("<ul>");
 					}
 				}
 				else if (new_list_level < list_level) {
 					for (int j = 0; j < list_level - new_list_level; j++) {
-						tryhard(html, chbuf, "</ul>", __LINE__, i);
+						html.add("</ul>");
 					}
 				}
 				list_level = new_list_level;
@@ -143,10 +121,10 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 				}
 
 				if (!prev_code_type && code_type) {
-					tryhard(html, chbuf, "<code>", __LINE__, i);
+					html.add("<code>");
 				}
 				else if (prev_code_type && !code_type) {
-					tryhard(html, chbuf, "</code>", __LINE__, i);
+					html.add("</code>");
 				}
 
 				if (!should_not_open_tag) {
@@ -160,24 +138,24 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 						tag[2] = '0' + header_level;
 						tag[3] = '>';
 						tag[4] = 0;
-						tryhard(html, chbuf, tag, __LINE__, i);
+						html.add(tag);
 
 						tag_levels[tag_cursor] = header_level;
 					}
 					else {
 						if (list_level > 0) {
 							tag_levels[tag_cursor] = TAG_LI;
-							tryhard(html, chbuf, "<li>", __LINE__, i);
+							html.add("<li>");
 						}
 						else {
 							tag_levels[tag_cursor] = TAG_P;
-							tryhard(html, chbuf, "<p>", __LINE__, i);
+							html.add("<p>");
 						}
 					}
 				}
 
 				if (header_level > 6)
-					tryhard(html, chbuf, "#######", __LINE__, i);
+					html.add("#######");
 
 				header_level = 0;
 			}
@@ -190,12 +168,12 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 		else {
 			if (code_type == 1 && consq_backticks == code_level) {
 				code_level = 0;
-				tryhard(html, chbuf, "</code>", __LINE__, i);
+				html.add("</code>");
 				code_type = 0;
 			}
 			else if (code_type == 0 && consq_backticks) {
 				code_level = consq_backticks;
-				tryhard(html, chbuf, "<code>", __LINE__, i);
+				html.add("<code>");
 				code_type = 1;
 			}
 			consq_backticks = 0;
@@ -214,13 +192,63 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 			if (c != '`') {
 				char back = '`';
 				for (int j = 0; j < consq_backticks; j++) {
-					tryhard(html, chbuf, "`", __LINE__, i);
+					html.add("`");
 				}
 
 				if (NEEDS_ESCAPE(c))
 					write_escaped_byte(c, chbuf);
 
-				tryhard(html, chbuf, chbuf, __LINE__, i);
+				html.add(chbuf);
+			}
+		}
+		else if (!was_esc) {
+			if (c == '!') {
+				if (i < in_sz-1 && input[i+1] == '[')
+					should_process = false;
+			}
+			else if (c == '[') {
+				should_process = false;
+
+				if (prev == '!')
+					html.add("<img src=\"");
+				else
+					html.add("<a href=\"");
+
+				int j = i+1;
+				int alt = j;
+				bool contains_colon = false;
+				for (; j < in_sz && input[j] != ']'; j++) {
+					if (input[j] == ':')
+						contains_colon = true;
+				}
+				int alt_end = j;
+
+				if (path && !contains_colon && input[alt] != '/') {
+					if (path[0] != '/') html.add("/");
+					html.add(path);
+					html.add("/");
+				}
+
+				for (; j < in_sz && input[j] != '('; j++);
+				int link = ++j;
+
+				for (; j < in_sz && input[j] != ')'; j++);
+
+				html.add_and_escape(&input[link], j - link);
+
+				if (prev == '!')
+					html.add("\" alt=\"");
+				else
+					html.add("\">");
+
+				html.add_and_escape(&input[alt], alt_end - alt);
+
+				if (prev == '!')
+					html.add("\">");
+				else
+					html.add("</a>");
+
+				i = j+1;
 			}
 		}
 
@@ -232,18 +260,18 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 
 			if (should_add_c) {
 				if (consq_asterisks & 1) {
-					tryhard(html, chbuf, is_italic ? "</em>" : "<em>", __LINE__, i);
+					html.add(is_italic ? "</em>" : "<em>");
 					is_italic = !is_italic;
 				}
 				if (consq_asterisks & 2) {
-					tryhard(html, chbuf, is_bold ? "</strong>" : "<strong>", __LINE__, i);
+					html.add(is_bold ? "</strong>" : "<strong>");
 					is_bold = !is_bold;
 				}
 
 				if (NEEDS_ESCAPE(c))
 					write_escaped_byte(c, chbuf);
 
-				tryhard(html, chbuf, chbuf, __LINE__, i);
+				html.add(chbuf);
 			}
 		}
 
@@ -267,12 +295,14 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, int lin
 			was_esc = c == '\\' && !was_esc;
 		else
 			was_esc = false;
+
+		prev = c;
 	}
 
 	while (tag_cursor > 0) {
 		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
 		tag_cursor--;
 
-		tryhard(html, chbuf, tag, __LINE__, -1);
+		html.add(tag);
 	}
 }

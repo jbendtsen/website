@@ -237,7 +237,7 @@ static long fs_add_entries(Vector<Entry>& entries, Expander& name_pool, int pare
 	return (modified_first << 32) | created_first;
 }
 
-static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_Buffer *sort_buf_dirs, Sort_Buffer *sort_buf_files, char *list_dir_buffer)
+static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_Buffer *sort_buf_dirs, Sort_Buffer *sort_buf_files, Expander& allowed_dirs, char *list_dir_buffer)
 {
 	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
 	if (path_fd < 0)
@@ -250,6 +250,8 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 
 	if (read_sz <= 0)
 		return -2;
+
+	int was_empty_tree = fs.total_name_tree_size == 0;
 
 	int off = 0;
 	int n_files = 0;
@@ -268,11 +270,24 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 		Sort_Buffer *sorter = sort_buf_files;
 		int *n = &n_files;
 
-		fs.total_name_tree_size += path.len + strlen(name) + (dir->d_type == DT_DIR);
-
 		if (dir->d_type == DT_DIR) {
-			sorter = sort_buf_dirs;
-			n = &n_dirs;
+			bool allowed = true;
+			if (was_empty_tree) {
+				allowed = false;
+				int idx = 0;
+				while (idx < allowed_dirs.head) {
+					char *str = &allowed_dirs.buf[idx];
+					if (!strcmp(name, str)) {
+						allowed = true;
+						break;
+					}
+					idx += strlen(str) + 1;
+				}
+			}
+			if (allowed) {
+				sorter = sort_buf_dirs;
+				n = &n_dirs;
+			}
 		}
 
 		// TODO: do something when this happens
@@ -280,6 +295,8 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 			*n += 1;
 			break;
 		}
+
+		fs.total_name_tree_size += path.len + strlen(name) + (dir->d_type == DT_DIR);
 
 		sorter->offsets[*n] = name;
 		*n += 1;
@@ -319,7 +336,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 		path.add(name, len);
 		path.add('/');
 
-		fs_init_directory(fs, path, i, sort_buf_dirs, sort_buf_files, list_dir_buffer);
+		fs_init_directory(fs, path, i, sort_buf_dirs, sort_buf_files, allowed_dirs, list_dir_buffer);
 
 		path.scrub(len + 1);
 	}
@@ -327,7 +344,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 	return 0;
 }
 
-int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
+int Filesystem::init_at(const char *initial_path, Expander& allowed_dirs, char *list_dir_buffer)
 {
 	name_pool.init(512, /*use_terminators=*/true, 0);
 
@@ -351,35 +368,26 @@ int Filesystem::init_at(const char *initial_path, char *list_dir_buffer)
 	dirs.add(FS_Directory::make_empty());
 
 	String path(starting_path);
-	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, list_dir_buffer);
+	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, allowed_dirs, list_dir_buffer);
 }
 
-int Filesystem::lookup_file(const char *path)
+int Filesystem::lookup_file(const char *path, int max_len)
 {
 	const char *p = path;
 	int parent = 0;
 
 	while (*p) {
-		while (*p == '/') p++;
-		if (*p == 0)
+		while (*p == '/')
+			p++;
+
+		if (*p == 0 || (max_len > 0 && p >= &path[max_len]))
 			return -1;
 
 		int len = 0;
-		while (p[len] && p[len] != '/') len++;
+		while (p[len] && p[len] != '/' && !(max_len > 0 && &p[len] >= &path[max_len]))
+			len++;
 
-		if (p[len] == 0) {
-			int idx = dirs[parent].first_file.alpha;
-			while (idx >= 0) {
-				char *name = name_pool.at(files[idx].name_idx);
-				int name_len = strlen(name);
-				if (len == name_len && !memcmp(p, name, len)) {
-					return idx;
-				}
-				idx = files[idx].next.alpha;
-			}
-			break;
-		}
-		else {
+		if (!(max_len > 0 && &p[len] >= &path[max_len]) && p[len] == '/') {
 			int idx = dirs[parent].first_dir.alpha;
 			while (idx >= 0) {
 				char *name = name_pool.at(dirs[idx].name_idx);
@@ -394,6 +402,18 @@ int Filesystem::lookup_file(const char *path)
 
 			parent = idx;
 		}
+		else {
+			int idx = dirs[parent].first_file.alpha;
+			while (idx >= 0) {
+				char *name = name_pool.at(files[idx].name_idx);
+				int name_len = strlen(name);
+				if (len == name_len && !memcmp(p, name, len)) {
+					return idx;
+				}
+				idx = files[idx].next.alpha;
+			}
+			break;
+		}
 
 		p += len + 1;
 	}
@@ -401,7 +421,7 @@ int Filesystem::lookup_file(const char *path)
 	return -1;
 }
 
-int Filesystem::lookup_dir(const char *path)
+int Filesystem::lookup_dir(const char *path, int max_len)
 {
 	if (!path || !path[0] || (path[0] == '/' && !path[1]))
 		return 0;
@@ -410,12 +430,15 @@ int Filesystem::lookup_dir(const char *path)
 	int parent = 0;
 
 	while (*p) {
-		while (*p == '/') p++;
-		if (*p == 0)
+		while (*p == '/')
+			p++;
+
+		if (*p == 0 || (max_len > 0 && p >= &path[max_len]))
 			return -1;
 
 		int len = 0;
-		while (p[len] && p[len] != '/') len++;
+		while (p[len] && p[len] != '/' && !(max_len > 0 && &p[len] >= &path[max_len]))
+			len++;
 
 		int idx = dirs[parent].first_dir.alpha;
 		while (idx >= 0) {
@@ -429,7 +452,7 @@ int Filesystem::lookup_dir(const char *path)
 		if (idx < 0)
 			break;
 
-		if (p[len] == 0)
+		if (p[len] != '/')
 			return idx;
 
 		parent = idx;

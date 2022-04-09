@@ -342,9 +342,9 @@ struct Filesystem {
 		return false;
 	}
 
-	int init_at(const char *initial_path, char *list_dir_buffer);
-	int lookup_file(const char *path);
-	int lookup_dir(const char *path);
+	int init_at(const char *initial_path, Expander& allowed_dirs, char *list_dir_buffer);
+	int lookup_file(const char *path, int max_len = 0);
+	int lookup_dir(const char *path, int max_len = 0);
 	void walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, void*), void (*file_cb)(Filesystem*, int, void*), void *cb_data);
 	int get_path(char *buf, int ancestor, int parent, char *name);
 	int refresh_file(int idx);
@@ -375,7 +375,7 @@ void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd);
 
 Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit);
 
-void produce_markdown_html(Expander& html, const char *input, int in_sz, int line_limit);
+void produce_markdown_html(Expander& html, const char *input, int in_sz, const char *path, int line_limit);
 
 void serve_404(Filesystem& fs, int fd);
 void serve_home_page(Filesystem& fs, int fd);

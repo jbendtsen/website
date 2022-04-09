@@ -17,13 +17,35 @@
 
 static int cancel_fd = -1;
 
-void get_datetime(char *buf) {
+const char *lookup_mime_ext(const char *ext)
+{
+	if (!ext)
+		return NULL;
+
+	int len = 0;
+	for (len = 0; ext[len] && ext[len] != ' ' && ext[len] != '\t' && ext[len] != '\r' && ext[len] != '\n'; len++);
+
+	if (!strncmp(ext, "png", len) || !strncmp(ext, "ico", len))
+		return "image/png";
+	if (!strncmp(ext, "css", len))
+		return "text/css";
+	if (!strncmp(ext, "js", len))
+		return "text/js";
+	if (!strncmp(ext, "html", len))
+		return "text/html";
+
+	return NULL;
+}
+
+void get_datetime(char *buf)
+{
 	time_t t = time(nullptr);
 	struct tm *utc = gmtime(&t);
 	strftime(buf, 96, "%a, %d %m %Y %H:%M:%S", utc);
 }
 
-void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size) {
+void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size)
+{
 	char hdr[256];
 	char datetime[96];
 	get_datetime(datetime);
@@ -47,7 +69,8 @@ void write_http_response(int request_fd, const char *status, const char *content
 		write(request_fd, data, size);
 }
 
-void serve_page(Filesystem& fs, int request_fd, char *name, int len) {
+void serve_page(Filesystem& fs, int request_fd, char *name, int len)
+{
 	if (!name || !len) {
 		serve_home_page(fs, request_fd);
 	}
@@ -74,8 +97,9 @@ void serve_page(Filesystem& fs, int request_fd, char *name, int len) {
 
 #define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
-int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
-	char buf[1024];
+int serve_request(int request_fd, File_Database& global, Filesystem& fs)
+{
+	char buf[1028] = {0};
 
 	int read_fd = request_fd;
 	if (read_fd == STDOUT_FILENO)
@@ -118,13 +142,73 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs) {
 
 		int len = p - name;
 		int file = global.lookup_file(name, len);
-		if (file >= 0) {
-			DB_File *f = &global.files[file];
-			write_http_response(request_fd, "200 OK", f->type, (char*)f->buffer, f->size);
+
+		char *accept_types = strstr(p, "\nAccept:");
+		bool allow_html = true;
+		bool handled = false;
+
+		if (accept_types) {
+			accept_types += 8;
+			char *q = accept_types;
+			allow_html = false;
+
+			while (*q && *q != '\r' && *q != '\n') {
+				if (q[0] == 'h' && q[1] == 't' && q[2] == 'm' && q[3] == 'l') {
+					allow_html = true;
+					break;
+				}
+				q++;
+			}
 		}
-		else {
+
+		if (!allow_html) {
+			const char *mime = NULL;
+			char *buffer = NULL;
+			int size = 0;
+
+			if (file >= 0) {
+				DB_File *f = &global.files[file];
+				mime = f->type;
+				buffer = (char*)f->buffer;
+				size = f->size;
+			}
+			else {
+				char *lol = (char*)malloc(len + 1);
+				memcpy(lol, name, len);
+				lol[len] = 0;
+				log_info("trying fs file {s}", lol);
+
+				file = fs.lookup_file(name, len);
+				if (file >= 0) {
+					char *q = &name[len-1];
+					while (q > name && *q != '.')
+						q--;
+
+					if (q > name)
+						mime = lookup_mime_ext(q+1);
+
+					fs.refresh_file(file);
+					buffer = (char*)fs.files[file].buffer;
+					size = fs.files[file].size;
+				}
+				else {
+					log_info("failed :(");
+				}
+
+				free(lol);
+			}
+
+			if (buffer && size) {
+				if (!mime)
+					mime = "text/plain";
+
+				write_http_response(request_fd, "200 OK", mime, buffer, size);
+				handled = true;
+			}
+		}
+
+		if (!handled)
 			serve_page(fs, request_fd, name, len);
-		}
 	}
 	else { // home page
 		serve_home_page(fs, request_fd);
@@ -206,7 +290,8 @@ void http_loop(File_Database& global, Filesystem& fs)
 	close(sock_fd);
 }
 
-int main() {
+int main()
+{
 	sigset_t sig_mask = {0};
 
 	sigemptyset(&sig_mask);
@@ -223,8 +308,13 @@ int main() {
 
 	char *list_dir_buffer = new char[LIST_DIR_LEN];
 
+	Expander allowed_dirs;
+	allowed_dirs.init(256, true, 0);
+	allowed_dirs.add("content");
+	allowed_dirs.add("client");
+
 	Filesystem fs;
-	fs.init_at(".", list_dir_buffer);
+	fs.init_at(".", allowed_dirs, list_dir_buffer);
 
 #ifdef DEBUG
 	while (true) {
