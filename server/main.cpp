@@ -173,11 +173,6 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs)
 				size = f->size;
 			}
 			else {
-				char *lol = (char*)malloc(len + 1);
-				memcpy(lol, name, len);
-				lol[len] = 0;
-				log_info("trying fs file {s}", lol);
-
 				file = fs.lookup_file(name, len);
 				if (file >= 0) {
 					char *q = &name[len-1];
@@ -191,11 +186,6 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs)
 					buffer = (char*)fs.files[file].buffer;
 					size = fs.files[file].size;
 				}
-				else {
-					log_info("failed :(");
-				}
-
-				free(lol);
 			}
 
 			if (buffer && size) {
