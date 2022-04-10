@@ -18,8 +18,8 @@
 }
 .article-column a:hover {
 	background-color: #e8eaec;
-	padding-bottom: 1px;
-	/*border: 1px solid #000;*/
+	padding: 0;
+	border: 1px solid #ccc;
 }
 .article-left {
 	margin-right: 1em;

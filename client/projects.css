@@ -43,7 +43,7 @@
 	flex-direction: column;
 	height: 100%;
 }
-#proj-main {
+#proj-page {
 	position: relative;
 	width: 100%;
 	height: 100%;
@@ -116,12 +116,28 @@
 	margin-left: 5%;
 	margin-bottom: 0.7em;
 }
-#proj-content {
+#proj-main {
+	display: flex;
+	flex-direction: column;
 	position: absolute;
 	left: min(20em, 25%);
 	right: 0;
 	top: 0;
 	bottom: 0;
+}
+#proj-header {
+	background-color: #f8f8f8;
+	border-left: 80px solid #e8eaec;
+	padding-left: 20px;
+}
+#proj-header h3 {
+	font-size: 110%;
+	font-style: oblique;
+	margin-top: 16px;
+	margin-bottom: 16px;
+}
+#proj-content {
+	flex-grow: 0;
 	overflow: auto;
 }
 .file-code::before {
@@ -138,7 +154,7 @@
 .file-code code::before {
 	content: counter(listing);
 	display: inline-block;
-	width: 4em;
+	width: calc(80px - 1em);
 	padding-right: 1em;
 	margin-right: 1em;
 	text-align: right;

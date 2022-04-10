@@ -4,7 +4,7 @@
 
 static void render_code_article(Expander& html, const char *input, int in_sz)
 {
-	html.add("<article><div class=\"file-code\"><code>");
+	html.add("<div class=\"file-code\"><code>");
 
 	int start = 0;
 	bool was_spec = false;
@@ -75,7 +75,7 @@ void serve_projects_overview(Filesystem& fs, int fd)
 	html.add("<div id=\"projects\">");
 
 	int projects = fs.lookup_dir("content/projects");
-	int proj = fs.dirs[projects].first_dir.alpha;
+	int proj = fs.dirs[projects].first_dir.modified;
 
 	String md_path;
 	md_path.add("content/projects");
@@ -93,7 +93,7 @@ void serve_projects_overview(Filesystem& fs, int fd)
 			break;
 		}
 		if (f < 0) {
-			proj = fs.dirs[proj].next.alpha;
+			proj = fs.dirs[proj].next.modified;
 			continue;
 		}
 
@@ -214,7 +214,7 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 		return;
 	}
 
-	html.add("<div id=\"proj-main\"><div id=\"proj-sidebar\">");
+	html.add("<div id=\"proj-page\"><div id=\"proj-sidebar\">");
 
 	html.add("<h2 id=\"proj-name\"><a href=\"/projects/");
 	html.add_and_escape(name, proj_len);
@@ -222,7 +222,7 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	html.add_and_escape(name, proj_len);
 	html.add("</a></h2>");
 
-	html.add("<hr />");
+	html.add("<hr class=\"no-margin-top-bottom\">");
 	html.add("<div id=\"proj-tree\">");
 
 	char dir_path[1024];
@@ -238,22 +238,26 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 	html.add_and_escape(name, proj_len);
 	html.add(".zip\"><div class=\"button\">DOWNLOAD</div>");
 
-	html.add("</div></a><div id=\"proj-content\">");
+	html.add("</div></a><div id=\"proj-main\">");
 
 	if (path_start < name_len) {
 		path.add('/');
 		path.add(&name[path_start], name_len - path_start);
 		int fidx = fs.lookup_file(path.data());
-		log_info("works: {s}", path.data());
 
 		if (fidx < 0) {
-			html.add("<article><h1>Could not open file: ");
+			html.add("<div id=\"proj-content\"><h1>Could not open file: ");
 			html.add_and_escape(path.data(), path.len);
-			html.add("</h1></article>");
+			html.add("</h1></div>");
 		}
 		else {
+			html.add("<div id=\"proj-header\"><h3>");
+			html.add_and_escape(fs.name_pool.at(fs.files[fidx].name_idx));
+			html.add("</h3></div><div id=\"proj-content\"><article>");
+
 			fs.refresh_file(fidx);
 			render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
+			html.add("</article></div>");
 		}
 	}
 	else {
@@ -268,11 +272,13 @@ void serve_specific_project(Filesystem& fs, int fd, char *name, int name_len)
 			}
 			break;
 		}
+
 		if (f >= 0) {
+			html.add("<div id=\"proj-content\"><article class=\"proj-md\">");
+
 			fs.refresh_file(f);
-			html.add("<article class=\"proj-md\">");
 			produce_markdown_html(html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0);
-			html.add("</article>");
+			html.add("</article></div>");
 		}
 	}
 
