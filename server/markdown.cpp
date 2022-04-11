@@ -299,6 +299,13 @@ void produce_markdown_html(Expander& html, const char *input, int in_sz, const c
 		prev = c;
 	}
 
+	if (code_type)
+		html.add("</code>");
+	if (is_bold)
+		html.add("</strong>");
+	if (is_italic)
+		html.add("</em>");
+
 	while (tag_cursor > 0) {
 		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
 		tag_cursor--;
