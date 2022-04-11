@@ -1,71 +1,45 @@
 #include <cstdio>
 #include "../server/website.h"
 
-void print_fs_tree(Filesystem& fs, int order) {
-	int next_levels[100];
-	char space_buf[204];
+void print_dir(Filesystem *fs, int didx, void *data) {
+	char buf[1024];
 
-	space_buf[0] = ' ';
-	space_buf[1] = ' ';
-	space_buf[2] = 0;
+	int name_idx = fs->dirs[didx].name_idx;
+	char *name = name_idx >= 0 ? fs->name_pool.at(name_idx) : NULL;
 
-	int dir_idx = fs.dirs[0].first_dir.array[order];
+	int len = fs->get_path(buf, 0, fs->dirs[didx].parent, name);
+	buf[len++] = '\n';
+	buf[len] = 0;
+	((String*)data)->add(buf, len);
+}
 
-	next_levels[0] = -1;
-	int lvl_cur = 1;
+void print_file(Filesystem *fs, int fidx, void *data) {
+	char buf[1024];
+	char *name = fs->name_pool.at(fs->files[fidx].name_idx);
 
-	printf("- /\n");
-
-	while (lvl_cur > 0 && dir_idx >= 0) {
-		FS_Directory& dir = fs.dirs[dir_idx];
-		printf("%s- %s/\n", space_buf, &fs.name_pool.buf[dir.name_idx]);
-		next_levels[lvl_cur] = dir_idx;
-
-		if (dir.first_dir.array[order] >= 0) {
-			space_buf[lvl_cur*2]     = ' ';
-			space_buf[lvl_cur*2 + 1] = ' ';
-			space_buf[lvl_cur*2 + 2] = 0;
-
-			dir_idx = dir.first_dir.array[order];
-			lvl_cur++;
-			continue;
-		}
-
-		int f = dir.first_file.array[order];
-		while (f >= 0) {
-			printf("%s    %s\n", space_buf, &fs.name_pool.buf[fs.files[f].name_idx]);
-			f = fs.files[f].next.array[order];
-		}
-
-		if (dir.next.array[order] >= 0) {
-			dir_idx = dir.next.array[order];
-			continue;
-		}
-
-		while (true) {
-			lvl_cur--;
-			if (lvl_cur <= 0)
-				break;
-
-			int next = fs.dirs[next_levels[lvl_cur]].next.array[order];
-			if (next > 0) {
-				dir_idx = next;
-				break;
-			}
-		}
-
-		space_buf[lvl_cur*2] = 0;
-	}
+	int len = fs->get_path(buf, 0, fs->files[fidx].parent, name);
+	buf[len++] = '\n';
+	buf[len] = 0;
+	((String*)data)->add(buf, len);
 }
 
 int main() {
 	init_logger();
 
+	Expander allowed_dirs;
+	allowed_dirs.init(256, true, 0);
+	allowed_dirs.add("content");
+	allowed_dirs.add("client");
+
 	Filesystem fs;
 	char *business = new char[LIST_DIR_LEN];
-	fs.init_at("../", business);
+	fs.init_at("../", allowed_dirs, business);
 	delete[] business;
 
-	for (int i = 0; i < 3; i++)
-		print_fs_tree(fs, i);
+	String output;
+
+	fs.walk(0, 0, print_dir, print_file, &output);
+
+	fwrite(output.data(), 1, output.len, stdout);
+	return 0;
 }

@@ -80,6 +80,8 @@ void serve_projects_overview(Filesystem& fs, int fd)
 	String md_path;
 	md_path.add("content/projects");
 
+	int count = 0;
+
 	while (proj >= 0) {
 		int f = fs.dirs[proj].first_file.alpha;
 		while (f >= 0) {
@@ -113,7 +115,7 @@ void serve_projects_overview(Filesystem& fs, int fd)
 		html.add("</article></a>");
 
 		md_path.scrub(pname_len + 1);
-		proj = fs.dirs[proj].next.alpha;
+		proj = fs.dirs[proj].next.modified;
 	}
 
 	html.add("</div></body></html>");

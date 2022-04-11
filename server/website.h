@@ -62,7 +62,7 @@ struct String {
 
 	int resize(int sz);
 
-	void add(String& str);
+	void add(String str);
 	void add(const char *str, int size);
 	void add(char c);
 	void add(const char *str);

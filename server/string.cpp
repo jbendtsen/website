@@ -83,7 +83,7 @@ int String::resize(int sz) {
 	return len;
 }
 
-void String::add(String& str) {
+void String::add(String str) {
 	char *src_data = str.data();
 	int head = len;
 	int new_size = resize(len + str.len);
@@ -160,6 +160,18 @@ struct String_Format {
 };
 
 static int fmt_write_string(char *param, String& str, int pos, String_Format& f, int spec_len) {
+	if (!param) {
+		str.resize(str.len + 6 - spec_len);
+		char *p = &str.data()[pos];
+		*p++ = '(';
+		*p++ = 'n';
+		*p++ = 'u';
+		*p++ = 'l';
+		*p++ = 'l';
+		*p++ = ')';
+		return 6;
+	}
+
 	int elem_size = f.size;
 	int len = strlen(param);
 	if (!elem_size || elem_size > len)
@@ -368,7 +380,11 @@ void write_escaped_byte(int ch, char *buf) {
 
 bool caseless_match(const char *a, const char *b) {
 	while (*a && *b) {
-		if (*a++ != *b++)
+		char c1 = *a++;
+		char c2 = *b++;
+		if (c1 >= 'A' && c1 <= 'Z') c1 += 0x20;
+		if (c2 >= 'A' && c2 <= 'Z') c2 += 0x20;
+		if (c1 != c2)
 			return false;
 	}
 	return *a == 0 && *b == 0;

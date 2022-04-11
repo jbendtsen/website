@@ -470,19 +470,24 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 	int lvl_cur = 0;
 	int total_files_size = 0;
 	int didx = dir_idx;
+	bool skip_to_files = false;
 
 	while (didx >= 0) {
-		if (dir_cb)
-			dir_cb(this, didx, cb_data);
-
 		FS_Directory& dir = dirs[didx];
-		next_levels[lvl_cur] = didx;
 
-		if (dir.first_dir.array[order] >= 0) {
-			didx = dir.first_dir.array[order];
-			lvl_cur++;
-			continue;
+		if (!skip_to_files) {
+			if (dir_cb)
+				dir_cb(this, didx, cb_data);
+
+			next_levels[lvl_cur] = didx;
+
+			if (dir.first_dir.array[order] >= 0) {
+				didx = dir.first_dir.array[order];
+				lvl_cur++;
+				continue;
+			}
 		}
+		skip_to_files = false;
 
 		int f = dir.first_file.array[order];
 		while (f >= 0) {
@@ -502,8 +507,9 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 			if (lvl_cur <= 0)
 				break;
 
-			int next = dirs[next_levels[lvl_cur]].next.array[order];
+			int next = next_levels[lvl_cur]; //.next.array[order];
 			if (next > 0) {
+				skip_to_files = true;
 				didx = next;
 				break;
 			}
@@ -516,8 +522,7 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 
 int Filesystem::get_path(char *buf, int ancestor, int parent, char *name)
 {
-	//char *name = name_pool.at(files[f].name_idx);
-	int name_len = strlen(name);
+	int name_len = name ? strlen(name) : 0;
 	if (name_len >= 1023)
 		return -1;
 
@@ -531,8 +536,8 @@ int Filesystem::get_path(char *buf, int ancestor, int parent, char *name)
 		if (name_idx < 0)
 			break;
 
-		char *name = name_pool.at(name_idx);
-		int name_len = strlen(name);
+		name = name_pool.at(name_idx);
+		name_len = strlen(name);
 		if (name_len >= 1023)
 			return -1;
 
