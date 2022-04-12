@@ -20,9 +20,9 @@ static const char *closing_tag_strings[] = {
 	"</li>",
 };
 
-void produce_markdown_html(Expander& html, const char *input, int in_sz, const char *path, int line_limit)
+void produce_markdown_html(String& html, const char *input, int in_sz, const char *path, int line_limit)
 {
-	html.reserve_extra(in_sz);
+	html.reserve(html.len + in_sz);
 
 	int tag_levels[16] = {0};
 	int tag_cursor = 0;

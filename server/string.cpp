@@ -49,6 +49,7 @@ int String::resize(int sz) {
 
 	if (actual_sz <= capacity) {
 		len = sz;
+		data()[sz] = 0;
 		return len;
 	}
 
@@ -81,6 +82,25 @@ int String::resize(int sz) {
 	ptr = buf;
 	len = sz;
 	return len;
+}
+
+void String::reserve(int sz) {
+	if (sz <= 0 || sz <= capacity || ((u64)ptr & 1ULL))
+		return;
+
+	char *buf = new char[sz];
+	if (capacity > 0) {
+		if (ptr) {
+			memcpy(buf, ptr, capacity);
+			delete[] ptr;
+		}
+		else if (capacity <= INITIAL_SIZE) {
+			memcpy(buf, initial_buf, capacity);
+		}
+	}
+
+	capacity = sz;
+	ptr = buf;
 }
 
 void String::add(String str) {
@@ -123,7 +143,24 @@ void String::assign(const char *str, int size) {
 	add(str, size);
 }
 
+void String::add_chars(char c, int n) {
+	if (n <= 0)
+		return;
+
+	int head = len;
+	resize(head + n);
+
+	char *p = data() + head;
+	while (--n >= 0)
+		*p++ = c;
+}
+
 void String::add_and_escape(const char *str, int size) {
+	if (!str)
+		return;
+	if (size <= 0)
+		size = strlen(str);
+
 	int head = len;
 	resize(len + size);
 

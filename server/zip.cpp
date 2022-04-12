@@ -34,7 +34,7 @@ static void enum_dirs(Filesystem *fs, int didx, void *data) {
 }
 
 static void enum_files(Filesystem *fs, int fidx, void *data) {
-	fs->refresh_file(fidx);
+	//fs->refresh_file(fidx);
 
 	auto stats = (ZIP_Stats*)data;
 	stats->n_entries++; // n_entries
@@ -217,29 +217,21 @@ static void write_file_central(Filesystem *fs, int fidx, void *data)
 
 // Creates an uncompressed .zip file from a directory by creating ZIP headers for each file,
 //  then writes the output as a scattered set of messages to the given socket
-void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd)
+void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response)
 {
-	u8 zip_end[32];
-	char datetime[128];
-	char http_buf[512];
+	response.type = RESPONSE_MULTI;
 
 	ZIP_Stats stats = {0};
 	stats.top_dir = dir_idx;
 	fs.walk(dir_idx, FS_ORDER_ALPHA, enum_dirs, enum_files, &stats);
 
-	int zip_headers_size = stats.n_entries * (30 + 46) + stats.total_name_size * 2;
+	int zip_headers_size = 22 + stats.n_entries * (30 + 46) + stats.total_name_size * 2;
 
 	// combined file size + combined zip header size + size of ZIP "end of central directory record"
-	size_t response_size = stats.total_file_size + zip_headers_size + 22;
+	size_t response_size = stats.total_file_size + zip_headers_size;
 
-	int n_msgs = 3 * stats.n_entries + 2;
-	int buf_size = sizeof(struct msghdr) + n_msgs * sizeof(struct iovec) + zip_headers_size;
-
-	u8 *buf = new u8[buf_size + 4]; // +4 just in case
-	memset(buf, 0, buf_size);
-
-	auto msg = (struct msghdr*)buf;
-	msg->msg_iov = (struct iovec*)&buf[sizeof(struct msghdr)];
+	char datetime[128];
+	char http_buf[512];
 
 	String http((char*)http_buf, 512);
 	get_datetime(datetime);
@@ -254,7 +246,18 @@ void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd)
 		datetime, response_size
 	);
 
-	msg->msg_iov[0] = { http.data(), (size_t)http.len };
+	int n_msgs = 3 * stats.n_entries + 2;
+	int buf_size = sizeof(struct msghdr) + n_msgs * sizeof(struct iovec) + http.len + zip_headers_size;
+
+	response.html.resize(buf_size + 4); // +4 just in case
+	u8 *buf = (u8*)response.html.data();
+	memset(buf, 0, buf_size);
+
+	auto msg = (struct msghdr*)buf;
+	msg->msg_iov = (struct iovec*)&buf[sizeof(struct msghdr)];
+
+	memcpy(&msg->msg_iov[n_msgs], http.data(), http.len);
+	msg->msg_iov[0] = { &msg->msg_iov[n_msgs], (size_t)http.len };
 
 	ZIP_Headers zip = {
 		&msg->msg_iov[1],
@@ -267,6 +270,7 @@ void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd)
 	u8 *zip_local_end = zip.cur_data;
 	fs.walk(dir_idx, FS_ORDER_ALPHA, write_dir_central, write_file_central, &zip);
 
+	u8 *zip_end = &buf[buf_size - 22];
 	memset(zip_end, 0, 22);
 
 	{
@@ -296,7 +300,4 @@ void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd)
 
 	*zip.cur_iv++ = { zip_end, 22 };
 	msg->msg_iovlen = (size_t)((u8*)zip.cur_iv - &buf[sizeof(struct msghdr)]) / sizeof(struct iovec);
-
-	sendmsg(sock_fd, msg, 0);
-	delete[] buf;
 }

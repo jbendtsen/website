@@ -4,8 +4,13 @@
 #include <cstring>
 
 #define NEEDS_ESCAPE(c) ((c) < ' ' || (c) > '~' || (c) == '&' || (c) == '<' || (c) == '>' || (c) == '"')
+#define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
 
 #define SECS_UNTIL_RELOAD 60
+
+#define RESPONSE_FILE  1
+#define RESPONSE_HTML  2
+#define RESPONSE_MULTI 3
 
 #define LIST_DIR_MAX_FILES  (1 << 12)
 #define LIST_DIR_LEN        (1 << 20)
@@ -61,13 +66,16 @@ struct String {
 	void scrub(int len_from_end);
 
 	int resize(int sz);
+	void reserve(int sz);
 
 	void add(String str);
 	void add(const char *str, int size);
 	void add(char c);
 	void add(const char *str);
 
-	void add_and_escape(const char *str, int size);
+	void add_chars(char c, int n);
+
+	void add_and_escape(const char *str, int size = 0);
 
 	void assign(const char *str, int size);
 
@@ -94,29 +102,22 @@ struct String {
 	}
 };
 
-struct Expander {
+struct Pool {
 	char *buf = nullptr;
 	int cap = 0;
 	int head = 0;
-	int start = 0;
-	int extra = 0;
 
-	Expander();
-	~Expander();
+	Pool();
+	~Pool();
 
-	void init(int capacity, bool use_terminators, int prepend_space);
+	void init(int capacity);
 
-	char *get(int *size);
 	char *at(int offset);
 
 	int add(const char *str, int add_len = 0);
 	void add_and_escape(const char *str, int size = 0);
 
 	void reserve_extra(int bytes);
-
-	int prepend_string_trunc(const char *add, int add_len);
-
-	int prepend_string_overlap(const char *add, int add_len);
 };
 
 template<typename T>
@@ -169,10 +170,6 @@ struct Vector {
 		resize(old_size + n);
 		memcpy(&data[old_size], array, n * sizeof(T));
 	}
-
-	void clear() {
-		size = 0;
-	}
 };
 
 template <typename T>
@@ -223,6 +220,14 @@ struct Inline_Vector {
 		resize(size+1);
 		data()[idx] = t;
 	}
+};
+
+struct Response {
+	int type;
+	int file_size;
+	char *file_buffer;
+	const char *status;
+	String html;
 };
 
 struct DB_File {
@@ -308,15 +313,9 @@ struct FS_File {
 	}
 };
 
-template<typename T, int size>
-struct Bucket {
-	T data[size];
-	Bucket<T, size> *next;
-};
-
 struct Filesystem {
 	String starting_path;
-	Expander name_pool;
+	Pool name_pool;
 	Vector<FS_Directory> dirs;
 	Vector<FS_File> files;
 	int total_name_tree_size;
@@ -329,58 +328,30 @@ struct Filesystem {
 		}
 	}
 
-	template <class Container>
-	bool add_file_to_html(Container& html, const char *path) {
-		int fidx = lookup_file(path);
-		if (fidx >= 0) {
-			refresh_file(fidx);
-			if (files[fidx].buffer) {
-				html.add((const char*)files[fidx].buffer, files[fidx].size);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	int init_at(const char *initial_path, Expander& allowed_dirs, char *list_dir_buffer);
+	int init_at(const char *initial_path, Pool& allowed_dirs, char *list_dir_buffer);
 	int lookup_file(const char *path, int max_len = 0);
 	int lookup_dir(const char *path, int max_len = 0);
 	void walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, void*), void (*file_cb)(Filesystem*, int, void*), void *cb_data);
 	int get_path(char *buf, int ancestor, int parent, char *name);
-	int refresh_file(int idx);
+	//int refresh_file(int idx);
+	bool add_file_to_html(String *html, const char *path);
 };
 
-template <class Container>
-void add_banner(Filesystem& fs, Container& html, int hl_idx)
-{
-	html.add("<nav><div id=\"inner-nav\"><a class=\"nav-item");
-	if (hl_idx == 0) html.add(" nav-item-cur");
-	html.add("\" href=\"/\"><span>HOME");
-
-	html.add("</span></a><a class=\"nav-item");
-	if (hl_idx == 1) html.add(" nav-item-cur");
-	html.add("\" href=\"/blog\"><span>BLOG");
-
-	html.add("</span></a><a class=\"nav-item");
-	if (hl_idx == 2) html.add(" nav-item-cur");
-	html.add("\" href=\"/projects\"><span>PROJECTS");
-
-	html.add("</span></a></div></nav>");
-}
-
+const char *lookup_mime_ext(const char *ext);
 void get_datetime(char *buf);
-void write_http_response(int fd, const char *status, const char *content_type, const char *data, int size);
+void write_http_header(int request_fd, const char *status, const char *content_type, int size);
+void add_banner(Filesystem& fs, String *html, int hl_idx);
 
-void write_zip_to_socket(Filesystem& fs, int dir_idx, int sock_fd);
+void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response);
 
-Space produce_article_html(Expander& article, const char *input, int in_sz, long created_time, int line_limit);
+Space produce_article_html(String& article, const char *input, int in_sz, long created_time, int line_limit);
 
-void produce_markdown_html(Expander& html, const char *input, int in_sz, const char *path, int line_limit);
+void produce_markdown_html(String& html, const char *input, int in_sz, const char *path, int line_limit);
 
-void serve_404(Filesystem& fs, int fd);
-void serve_home_page(Filesystem& fs, int fd);
-void serve_blog_overview(Filesystem& fs, int fd);
-void serve_specific_blog(Filesystem& fs, int fd, char *name, int len);
-void serve_projects_overview(Filesystem& fs, int fd);
-void serve_specific_project(Filesystem& fs, int fd, char *name, int len);
+void serve_404(Filesystem& fs, Response& response);
+void serve_home_page(Filesystem& fs, Response& response);
+void serve_blog_overview(Filesystem& fs, Response& response);
+void serve_specific_blog(Filesystem& fs, Response& response, char *name, int len);
+void serve_projects_overview(Filesystem& fs, Response& response);
+void serve_specific_project(Filesystem& fs, Response& response, char *name, int len);
 

@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
 
+#include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -11,148 +11,157 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
 #include "website.h"
 
-#define LISTEN_BACKLOG 10
+#define MAX_THREADS 4096
 
-static int cancel_fd = -1;
+#define THREAD_FLAG_BUSY     1
+#define THREAD_FLAG_CREATED  2
 
-const char *lookup_mime_ext(const char *ext)
+struct Thread {
+	u32 flags;
+	pthread_t handle;
+	int comms_fds[2];
+	Response response;
+};
+
+static void *handle_response(void *data)
 {
-	if (!ext)
-		return NULL;
+	Thread *thread = (Thread*)data;
 
-	int len = 0;
-	for (len = 0; ext[len] && ext[len] != ' ' && ext[len] != '\t' && ext[len] != '\r' && ext[len] != '\n'; len++);
+	while (true) {
+		int request_fd = 0;
+		read(thread->comms_fds[0], &request_fd, sizeof(int));
 
-	if (!strncmp(ext, "png", len) || !strncmp(ext, "ico", len))
-		return "image/png";
-	if (!strncmp(ext, "css", len))
-		return "text/css";
-	if (!strncmp(ext, "js", len))
-		return "text/js";
-	if (!strncmp(ext, "html", len))
-		return "text/html";
+		if (request_fd < 0)
+			break;
+
+		Response *res = &thread->response;
+		if (res->type == RESPONSE_FILE) {
+			char *mime = res->html.data();
+			write_http_header(request_fd, res->status, mime, res->file_size);
+			write(request_fd, res->file_buffer, res->file_size);
+		}
+		else if (res->type == RESPONSE_HTML) {
+			write_http_header(request_fd, res->status, "text/html", res->html.len);
+			write(request_fd, res->html.data(), res->html.len);
+		}
+		else if (res->type == RESPONSE_MULTI) {
+			auto msg = (struct msghdr*)res->html.data();
+			sendmsg(request_fd, msg, 0);
+		}
+
+		close(request_fd);
+		thread->flags &= ~THREAD_FLAG_BUSY;
+	}
+
+	int fds[2];
+	fds[0] = thread->comms_fds[0];
+	thread->comms_fds[0] = 0;
+	fds[1] = thread->comms_fds[1];
+	thread->comms_fds[1] = 0;
+
+	close(fds[0]);
+	close(fds[1]);
 
 	return NULL;
 }
 
-void get_datetime(char *buf)
+static void serve_response(Thread *t, int request_fd)
 {
-	time_t t = time(nullptr);
-	struct tm *utc = gmtime(&t);
-	strftime(buf, 96, "%a, %d %m %Y %H:%M:%S", utc);
+	t->flags |= THREAD_FLAG_BUSY;
+
+	if (t->comms_fds[1] <= 0)
+		pipe(t->comms_fds);
+
+	write(t->comms_fds[1], &request_fd, sizeof(int));
+
+	if ((t->flags & THREAD_FLAG_CREATED) == 0) {
+		t->flags |= THREAD_FLAG_CREATED;
+		int res = pthread_create(&t->handle, NULL, handle_response, t);
+		if (res != 0) {
+			t->flags = 0;
+			close(t->comms_fds[0]);
+			close(t->comms_fds[1]);
+			t->comms_fds[0] = 0;
+			t->comms_fds[1] = 0;
+
+			log_info("Failed to create thread (pthread_create() returned {d})", res);
+			return;
+		}
+	}
 }
 
-void write_http_response(int request_fd, const char *status, const char *content_type, const char *data, int size)
-{
-	char hdr[256];
-	char datetime[96];
-	get_datetime(datetime);
-
-	if (!data)
-		size = 0;
-
-	String response(hdr, 256);
-	response.reformat(
-		"HTTP/1.1 {s}\r\n"
-		"Date: {s} GMT\r\n"
-		"Server: jackbendtsen.com.au\r\n"
-		"Content-Type: {s}\r\n"
-		"Content-Length: {d}\r\n\r\n",
-		status, datetime, content_type, size
-	);
-
-	write(request_fd, response.data(), response.len);
-
-	if (data)
-		write(request_fd, data, size);
-}
-
-void serve_page(Filesystem& fs, int request_fd, char *name, int len)
+void serve_page(Filesystem& fs, Response& response, char *name, int len)
 {
 	if (!name || !len) {
-		serve_home_page(fs, request_fd);
+		serve_home_page(fs, response);
 	}
 	else if (!memcmp(name, "blog", 4)) {
 		if (len > 5 && name[4] == '/') {
-			serve_specific_blog(fs, request_fd, name + 5, len - 5);
+			serve_specific_blog(fs, response, name + 5, len - 5);
 		}
 		else if (len == 4) {
-			serve_blog_overview(fs, request_fd);
+			serve_blog_overview(fs, response);
 		}
 	}
 	else if (!memcmp(name, "projects", 8)) {
 		if (len > 9 && name[8] == '/') {
-			serve_specific_project(fs, request_fd, name + 9, len - 9);
+			serve_specific_project(fs, response, name + 9, len - 9);
 		}
 		else if (len == 8) {
-			serve_projects_overview(fs, request_fd);
+			serve_projects_overview(fs, response);
 		}
 	}
 	else {
-		serve_404(fs, request_fd);
+		serve_404(fs, response);
 	}
 }
 
-#define IS_SPACE(c) (c == ' ' || c == '\t' || c == '\r' || c == '\n')
-
-int serve_request(int request_fd, File_Database& global, Filesystem& fs)
+static void produce_response(char *header, int sz, Response& response, File_Database *global, Filesystem *fs)
 {
-	char buf[1028] = {0};
+	char *end = &header[sz-1];
 
-	int read_fd = request_fd;
-	if (read_fd == STDOUT_FILENO)
-		read_fd = STDIN_FILENO;
-
-	int sz = read(read_fd, buf, 1024);
-	if (sz < 0)
-		return 0;
-
-	if (sz <= 4) {
-		log_info("Request was too small ({d} bytes)", sz);
-		return 1;
-	}
-	else {
-		buf[sz-1] = 0;
-		puts(buf);
-	}
-
-	if (sz == 1024) {
-		char fluff[256];
-		while (read(read_fd, fluff, 256) == 256);
-	}
-
-	char *end = &buf[sz-1];
-
-	if (buf[0] != 'G' || buf[1] != 'E' || buf[2] != 'T') {
-		log_info("Discarding request (was not a GET request)");
-		return 2;
-	}
-
-	char *p = &buf[3];
+	char *p = &header[3];
 	while (IS_SPACE(*p) && p < end)
 		p++;
-
 	p++;
+
+	char *name = NULL;
+	int len = 0;
+
+	// default value, should be changed if the request/response doesn't succeed
+	response.status = "200 OK";
+
 	if (!IS_SPACE(*p)) {
-		char *name = p;
+		name = p;
 		while (!IS_SPACE(*p) && p < end)
 			p++;
 
-		int len = p - name;
-		int file = global.lookup_file(name, len);
+		len = p - name;
 
-		char *accept_types = strstr(p, "\nAccept:");
+		char *q = p;
+		char *accept_types = NULL;
+		while (q < end-8 && *q) {
+			int i = 0;
+			for (; i < 8; i++) {
+				if (q[i] != "\nAccept:"[i])
+					break;
+			}
+			if (i == 8) {
+				accept_types = q + 8;
+				break;
+			}
+			q++;
+		}
+
 		bool allow_html = true;
-		bool handled = false;
 
 		if (accept_types) {
-			accept_types += 8;
-			char *q = accept_types;
 			allow_html = false;
 
-			while (*q && *q != '\r' && *q != '\n') {
+			while (q < end-4 && *q && *q != '\r' && *q != '\n') {
 				if (q[0] == 'h' && q[1] == 't' && q[2] == 'm' && q[3] == 'l') {
 					allow_html = true;
 					break;
@@ -166,14 +175,15 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs)
 			char *buffer = NULL;
 			int size = 0;
 
+			int file = global->lookup_file(name, len);
 			if (file >= 0) {
-				DB_File *f = &global.files[file];
+				DB_File *f = &global->files[file];
 				mime = f->type;
 				buffer = (char*)f->buffer;
 				size = f->size;
 			}
 			else {
-				file = fs.lookup_file(name, len);
+				file = fs->lookup_file(name, len);
 				if (file >= 0) {
 					char *q = &name[len-1];
 					while (q > name && *q != '.')
@@ -182,9 +192,10 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs)
 					if (q > name)
 						mime = lookup_mime_ext(q+1);
 
-					fs.refresh_file(file);
-					buffer = (char*)fs.files[file].buffer;
-					size = fs.files[file].size;
+					//fs.refresh_file(file);
+					FS_File *f = &fs->files[file];
+					buffer = (char*)f->buffer;
+					size = f->size;
 				}
 			}
 
@@ -192,23 +203,51 @@ int serve_request(int request_fd, File_Database& global, Filesystem& fs)
 				if (!mime)
 					mime = "text/plain";
 
-				write_http_response(request_fd, "200 OK", mime, buffer, size);
-				handled = true;
+				response.type = RESPONSE_FILE;
+				response.html.resize(0);
+				response.html.add(mime);
+				response.file_size = size;
+				response.file_buffer = buffer;
+
+				return;
 			}
 		}
-
-		if (!handled)
-			serve_page(fs, request_fd, name, len);
-	}
-	else { // home page
-		serve_home_page(fs, request_fd);
 	}
 
-	return 0;
+	response.type = RESPONSE_HTML;
+	response.html.resize(0);
+	serve_page(*fs, response, name, len);
 }
 
-void http_loop(File_Database& global, Filesystem& fs)
+static int read_request_header(int fd, char *buf, int max_len)
 {
+	int read_fd = fd;
+	if (read_fd == STDOUT_FILENO)
+		read_fd = STDIN_FILENO;
+
+	int sz = read(read_fd, buf, max_len);
+	if (sz < 0)
+		return -1;
+
+	if (sz > 4) {
+		buf[sz-1] = 0;
+		puts(buf);
+	}
+
+	if (sz == max_len) {
+		char fluff[256];
+		while (read(read_fd, fluff, 256) == 256);
+	}
+
+	return sz;
+}
+
+static int cancel_fd = -1;
+
+static void http_loop(File_Database *global, Filesystem *fs)
+{
+	char header[1024];
+
 	int sock_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock_fd < 0) {
 		log_error("socket() failed, errno={d}\n", errno);
@@ -234,10 +273,12 @@ void http_loop(File_Database& global, Filesystem& fs)
 		return;
 	}
 
-	if (listen(sock_fd, LISTEN_BACKLOG) < 0) {
+	if (listen(sock_fd, MAX_THREADS) < 0) {
 		log_error("listen() failed, errno={d}\n", errno);
 		return;
 	}
+
+	Thread *threads = new Thread[MAX_THREADS]();
 
 	while (true) {
 		fd_set set;
@@ -273,11 +314,53 @@ void http_loop(File_Database& global, Filesystem& fs)
 		flags |= O_NONBLOCK;
 		fcntl(fd, F_SETFL, flags);
 
-		serve_request(fd, global, fs);
-		close(fd);
+		int sz = read_request_header(fd, header, 1024);
+		if (sz <= 4) {
+			log_info("Request was too small ({d} bytes)", sz);
+			close(fd);
+			continue;
+		}
+
+		if (header[0] != 'G' || header[1] != 'E' || header[2] != 'T') {
+			log_info("Discarding request (was not a GET request)");
+			close(fd);
+			continue;
+		}
+
+		int tidx = -1;
+		for (int i = 0; i < MAX_THREADS; i++) {
+			if ((threads[i].flags & THREAD_FLAG_BUSY) == 0) {
+				tidx = i;
+				break;
+			}
+		}
+
+		if (tidx < 0) {
+			log_info("Could not find a thread to respond with");
+			close(fd);
+			continue;
+		}
+
+		produce_response(header, sz, threads[tidx].response, global, fs);
+
+		// the responding thread is responsible for closing the connection
+		serve_response(&threads[tidx], fd);
 	}
 
 	close(sock_fd);
+
+	for (int i = 0; i < MAX_THREADS; i++) {
+		int fd = threads[i].comms_fds[1];
+		if (fd > 0) {
+			int msg = -1;
+			write(fd, &msg, sizeof(int));
+		}
+		if (threads[i].flags & THREAD_FLAG_CREATED) {
+			pthread_join(threads[i].handle, NULL);
+		}
+	}
+
+	delete[] threads;
 }
 
 int main()
@@ -292,19 +375,21 @@ int main()
 
 	init_logger();
 
-	File_Database global;
-	if (global.init("global-files.txt") != 0)
+	File_Database *global = new File_Database();
+	if (global->init("global-files.txt") != 0) {
+		delete global;
 		return 1;
+	}
 
 	char *list_dir_buffer = new char[LIST_DIR_LEN];
 
-	Expander allowed_dirs;
-	allowed_dirs.init(256, true, 0);
+	Pool allowed_dirs;
+	allowed_dirs.init(256);
 	allowed_dirs.add("content");
 	allowed_dirs.add("client");
 
-	Filesystem fs;
-	fs.init_at(".", allowed_dirs, list_dir_buffer);
+	Filesystem *fs = new Filesystem();
+	fs->init_at(".", allowed_dirs, list_dir_buffer);
 
 #ifdef DEBUG
 	while (true) {
@@ -319,6 +404,8 @@ int main()
 	if (cancel_fd >= 0) close(cancel_fd);
 
 	delete[] list_dir_buffer;
+	delete fs;
+	delete global;
 
 	return 0;
 }
