@@ -9,13 +9,13 @@ static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
 	char *fname = fs.name_pool.at(file.name_idx);
 	int name_len = strlen(fname) - 3;
 	if (name_len <= 0) {
-		html->add("<div class=\"article-preview\"><div class=\"preview-overlay\"></div></div>", 0);
+		html->add("<div class=\"article-preview\"><div class=\"preview-overlay\"></div></div>");
 		return;
 	}
 
-	html->add("<a href=\"/blog/", 0);
+	html->add("<a href=\"/blog/");
 	html->add_and_escape(fname, name_len);
-	html->add("\"><div class=\"article-preview\"><div class=\"preview-overlay\"></div>", 0);
+	html->add("\"><div class=\"article-preview\"><div class=\"preview-overlay\"></div>");
 
 	//fs.refresh_file(blog_idx);
 
@@ -23,7 +23,7 @@ static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
 	produce_article_html(*html, (const char*)file.buffer, file.size, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
 	html->add("</article>");
 
-	html->add("</div></a>", 0);
+	html->add("</div></a>");
 }
 
 void serve_blog_overview(Filesystem& fs, Response& response)
@@ -101,7 +101,7 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	int title_dst_pos = html->len;
 	html->add_chars(' ', 128);
 
-	html->add("\n<style>\n", 0);
+	html->add("\n<style>\n");
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
@@ -112,7 +112,7 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 		"article h3 { font-size: 120%; }\n"
 	);
 
-	html->add("\n</style></head><body>", 0);
+	html->add("\n</style></head><body>");
 
 	add_banner(fs, html, NAV_IDX_BLOG);
 
@@ -120,7 +120,7 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	Space title_space = produce_article_html(*html, (const char*)file.buffer, file.size, file.created_time, 0);
 	html->add("</article>");
 
-	html->add("</body></html>", 0);
+	html->add("</body></html>");
 
 	int title_len = title_space.size < 113 ? title_space.size : 113;
 	char *title_dst = html->data() + title_dst_pos;
