@@ -180,6 +180,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 				write_zip_as_response(fs, dir_idx, response);
 				return;
 			}
+			path.scrub(name_len - 4);
 		}
 	}
 
@@ -252,7 +253,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 		}
 		else {
 			html->add("<div id=\"proj-header\"><h3>");
-			html->add_and_escape(fs.name_pool.at(fs.files[fidx].name_idx));
+			html->add_and_escape(&name[path_start], name_len - path_start);
 			html->add("</h3></div><div id=\"proj-content\"><article>");
 
 			//fs.refresh_file(fidx);

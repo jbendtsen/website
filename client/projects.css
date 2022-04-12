@@ -129,6 +129,7 @@
 	background-color: #f8f8f8;
 	border-left: 80px solid #e8eaec;
 	padding-left: 20px;
+	user-select: none;
 }
 #proj-header h3 {
 	font-size: 110%;
