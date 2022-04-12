@@ -568,6 +568,7 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 	int total_files_size = 0;
 	int didx = dir_idx;
 	bool skip_to_files = false;
+	bool files_at_top_level = false;
 
 	while (didx >= 0) {
 		FS_Directory& dir = dirs[didx];
@@ -612,8 +613,15 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 			}
 		}
 
-		if (lvl_cur <= 0)
+		if (lvl_cur <= 0) {
+			if (!files_at_top_level) {
+				files_at_top_level = true;
+				skip_to_files = true;
+				didx = dir_idx;
+				continue;
+			}
 			break;
+		}
 	}
 }
 
