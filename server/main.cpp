@@ -26,6 +26,35 @@ struct Thread {
 	Response response;
 };
 
+static void close_thread_pipe(Thread *thread)
+{
+	int fds[2];
+	fds[0] = thread->comms_fds[0];
+	thread->comms_fds[0] = 0;
+	fds[1] = thread->comms_fds[1];
+	thread->comms_fds[1] = 0;
+
+	if (fds[0] > 0) close(fds[0]);
+	if (fds[1] > 0) close(fds[1]);
+}
+
+static void send_response(Response *res, int fd)
+{
+	if (res->type == RESPONSE_FILE) {
+		char *mime = res->html.data();
+		write_http_header(fd, res->status, mime, res->file_size);
+		write(fd, res->file_buffer, res->file_size);
+	}
+	else if (res->type == RESPONSE_HTML) {
+		write_http_header(fd, res->status, "text/html", res->html.len);
+		write(fd, res->html.data(), res->html.len);
+	}
+	else if (res->type == RESPONSE_MULTI) {
+		auto msg = (struct msghdr*)res->html.data();
+		sendmsg(fd, msg, 0);
+	}
+}
+
 static void *handle_response(void *data)
 {
 	Thread *thread = (Thread*)data;
@@ -38,33 +67,13 @@ static void *handle_response(void *data)
 			break;
 
 		Response *res = &thread->response;
-		if (res->type == RESPONSE_FILE) {
-			char *mime = res->html.data();
-			write_http_header(request_fd, res->status, mime, res->file_size);
-			write(request_fd, res->file_buffer, res->file_size);
-		}
-		else if (res->type == RESPONSE_HTML) {
-			write_http_header(request_fd, res->status, "text/html", res->html.len);
-			write(request_fd, res->html.data(), res->html.len);
-		}
-		else if (res->type == RESPONSE_MULTI) {
-			auto msg = (struct msghdr*)res->html.data();
-			sendmsg(request_fd, msg, 0);
-		}
+		send_response(res, request_fd);
 
 		close(request_fd);
 		thread->flags &= ~THREAD_FLAG_BUSY;
 	}
 
-	int fds[2];
-	fds[0] = thread->comms_fds[0];
-	thread->comms_fds[0] = 0;
-	fds[1] = thread->comms_fds[1];
-	thread->comms_fds[1] = 0;
-
-	close(fds[0]);
-	close(fds[1]);
-
+	close_thread_pipe(thread);
 	return NULL;
 }
 
@@ -79,14 +88,11 @@ static void serve_response(Thread *t, int request_fd)
 
 	if ((t->flags & THREAD_FLAG_CREATED) == 0) {
 		t->flags |= THREAD_FLAG_CREATED;
+
 		int res = pthread_create(&t->handle, NULL, handle_response, t);
 		if (res != 0) {
 			t->flags = 0;
-			close(t->comms_fds[0]);
-			close(t->comms_fds[1]);
-			t->comms_fds[0] = 0;
-			t->comms_fds[1] = 0;
-
+			close_thread_pipe(t);
 			log_info("Failed to create thread (pthread_create() returned {d})", res);
 			return;
 		}
@@ -226,13 +232,21 @@ static int read_request_header(int fd, char *buf, int max_len)
 		read_fd = STDIN_FILENO;
 
 	int sz = read(read_fd, buf, max_len);
-	if (sz < 0)
+	if (sz < 0) {
+		log_error("read() failed, errno={d}\n", errno);
 		return -1;
-
-	if (sz > 4) {
-		buf[sz-1] = 0;
-		puts(buf);
 	}
+	if (sz <= 4) {
+		log_info("Request was too small ({d} bytes)", sz);
+		return -2;
+	}
+	if (buf[0] != 'G' || buf[1] != 'E' || buf[2] != 'T') {
+		log_info("Discarding request (was not a GET request)");
+		return -3;
+	}
+
+	buf[sz-1] = 0;
+	puts(buf);
 
 	if (sz == max_len) {
 		char fluff[256];
@@ -315,14 +329,7 @@ static void http_loop(File_Database *global, Filesystem *fs)
 		fcntl(fd, F_SETFL, flags);
 
 		int sz = read_request_header(fd, header, 1024);
-		if (sz <= 4) {
-			log_info("Request was too small ({d} bytes)", sz);
-			close(fd);
-			continue;
-		}
-
-		if (header[0] != 'G' || header[1] != 'E' || header[2] != 'T') {
-			log_info("Discarding request (was not a GET request)");
+		if (sz <= 0) {
 			close(fd);
 			continue;
 		}
@@ -350,12 +357,12 @@ static void http_loop(File_Database *global, Filesystem *fs)
 	close(sock_fd);
 
 	for (int i = 0; i < MAX_THREADS; i++) {
-		int fd = threads[i].comms_fds[1];
-		if (fd > 0) {
-			int msg = -1;
-			write(fd, &msg, sizeof(int));
-		}
 		if (threads[i].flags & THREAD_FLAG_CREATED) {
+			int fd = threads[i].comms_fds[1];
+			if (fd > 0) {
+				int msg = -1;
+				write(fd, &msg, sizeof(int));
+			}
 			pthread_join(threads[i].handle, NULL);
 		}
 	}
@@ -392,10 +399,18 @@ int main()
 	fs->init_at(".", allowed_dirs, list_dir_buffer);
 
 #ifdef DEBUG
+	char header[1024];
+	Response response;
+
 	while (true) {
 		log_info("");
-		if (serve_request(STDOUT_FILENO, global, fs) != 0)
+
+		int sz = read_request_header(STDIN_FILENO, header, 1024);
+		if (sz <= 0)
 			break;
+
+		produce_response(header, sz, response, global, fs);
+		send_response(&response, STDOUT_FILENO);
 	}
 #else
 	http_loop(global, fs);
