@@ -329,8 +329,9 @@ struct Filesystem {
 	}
 
 	int init_at(const char *initial_path, Pool& allowed_dirs, char *list_dir_buffer);
-	int lookup_file(const char *path, int max_len = 0);
-	int lookup_dir(const char *path, int max_len = 0);
+	void lookup(int *dir_idx, int *file_idx, const char *path, int max_len);
+	int lookup_dir(const char *path);
+	int lookup_file(const char *path);
 	void walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, void*), void (*file_cb)(Filesystem*, int, void*), void *cb_data);
 	int get_path(char *buf, int ancestor, int parent, char *name);
 	//int refresh_file(int idx);

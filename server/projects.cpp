@@ -168,7 +168,8 @@ static void add_directory_html(String *html, Filesystem& fs, int didx, char *pat
 
 void serve_specific_project(Filesystem& fs, Response& response, char *name, int name_len)
 {
-	String path;
+	char dir_path[1024];
+	String path(dir_path, 1024);
 	path.add("content/projects/");
 
 	if (name_len > 4) {
@@ -182,6 +183,23 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			}
 			path.scrub(name_len - 4);
 		}
+	}
+
+	int proj_len = 0;
+	while (proj_len < name_len && name[proj_len] && name[proj_len] != '/')
+		proj_len++;
+
+	int path_start = proj_len;
+	while (path_start < name_len && name[path_start] && name[path_start] == '/')
+		path_start++;
+
+	path.add(name, proj_len);
+	path.add('/');
+	int proj_dir = fs.lookup_dir(path.data());
+
+	if (proj_dir < 0) {
+		serve_404(fs, response);
+		return;
 	}
 
 	String *html = &response.html;
@@ -199,22 +217,6 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 	html->add("<div id=\"proj-screen\">");
 	add_banner(fs, html, NAV_IDX_PROJECTS);
 
-	int proj_len = 0;
-	while (proj_len < name_len && name[proj_len] && name[proj_len] != '/')
-		proj_len++;
-
-	int path_start = proj_len;
-	while (path_start < name_len && name[path_start] && name[path_start] == '/')
-		path_start++;
-
-	path.add(name, proj_len);
-	int proj_dir = fs.lookup_dir(path.data());
-
-	if (proj_dir < 0) {
-		serve_404(fs, response);
-		return;
-	}
-
 	html->add("<div id=\"proj-page\"><div id=\"proj-sidebar\">");
 
 	html->add("<h2 id=\"proj-name\"><a href=\"/projects/");
@@ -226,13 +228,8 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 	html->add("<hr class=\"no-margin-top-bottom\">");
 	html->add("<div id=\"proj-tree\">");
 
-	char dir_path[1024];
-	memcpy(dir_path, "/projects/", 10);
-	memcpy(&dir_path[10], name, proj_len);
-	dir_path[10+proj_len] = '/';
-	dir_path[11+proj_len] = 0;
-
-	add_directory_html(html, fs, proj_dir, dir_path, 11+proj_len);
+	const int proj_root = 7; // skips past "content" (length 7), starts at a '/'
+	add_directory_html(html, fs, proj_dir, path.data() + proj_root, 11+proj_len);
 
 	html->add("</div><hr />");
 	html->add("<a id=\"proj-download\" href=\"/projects/");
@@ -242,7 +239,6 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 	html->add("</div></a><div id=\"proj-main\">");
 
 	if (path_start < name_len) {
-		path.add('/');
 		path.add(&name[path_start], name_len - path_start);
 		int fidx = fs.lookup_file(path.data());
 

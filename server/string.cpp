@@ -196,7 +196,7 @@ struct String_Format {
 	int right_sp;
 };
 
-static int fmt_write_string(char *param, String& str, int pos, String_Format& f, int spec_len) {
+static int fmt_write_string(char *param, int len, String& str, int pos, String_Format& f, int spec_len) {
 	if (!param) {
 		str.resize(str.len + 6 - spec_len);
 		char *p = &str.data()[pos];
@@ -209,8 +209,11 @@ static int fmt_write_string(char *param, String& str, int pos, String_Format& f,
 		return 6;
 	}
 
+	int s_len = strlen(param);
+	if (!len || len > s_len)
+		len = s_len;
+
 	int elem_size = f.size;
-	int len = strlen(param);
 	if (!elem_size || elem_size > len)
 		elem_size = len;
 
@@ -316,13 +319,18 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 
 				if (f.type == 0) {
 					char *param = va_arg(args, char*);
-					written = fmt_write_string(param, str, pos, f, spec_len);
+					written = fmt_write_string(param, 0, str, pos, f, spec_len);
 				}
-				else if (f.type >= 1 && f.type <= 4) {
+				else if (f.type == 1) {
+					char *s_param = va_arg(args, char*);
+					int l_param = va_arg(args, int);
+					written = fmt_write_string(s_param, l_param, str, pos, f, spec_len);
+				}
+				else if (f.type >= 2 && f.type <= 5) {
 					long param = 0;
-					if (f.type == 1 || f.type == 3)
+					if (f.type == 2 || f.type == 4)
 						param = va_arg(args, int);
-					else if (f.type == 2 || f.type == 4)
+					else if (f.type == 3 || f.type == 5)
 						param = va_arg(args, long);
 
 					written = fmt_write_number(param, str, pos, f, spec_len);
@@ -342,7 +350,7 @@ void write_formatted_string(String& str, const char *fmt, va_list args) {
 				f.subparam++;
 			}
 			else if (f.param == 0) {
-				const char *data_types = "sdDxX";
+				const char *data_types = "sSdDxX";
 				int s = strlen(data_types);
 				for (int i = 0; i < s; i++) {
 					if (c == data_types[i]) {

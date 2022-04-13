@@ -189,7 +189,7 @@ static void produce_response(char *header, int sz, Response& response, File_Data
 				size = f->size;
 			}
 			else {
-				file = fs->lookup_file(name, len);
+				fs->lookup(nullptr, &file, name, len);
 				if (file >= 0) {
 					char *q = &name[len-1];
 					while (q > name && *q != '.')

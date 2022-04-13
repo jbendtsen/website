@@ -468,95 +468,91 @@ int Filesystem::init_at(const char *initial_path, Pool& allowed_dirs, char *list
 	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, allowed_dirs, list_dir_buffer);
 }
 
-int Filesystem::lookup_file(const char *path, int max_len)
+void Filesystem::lookup(int *dir_idx, int *file_idx, const char *path, int max_len)
 {
-	const char *p = path;
+	if (!dir_idx && !file_idx)
+		return;
+
+	if (dir_idx) *dir_idx = 0;
+	if (file_idx) *file_idx = -1;
+
+	int idx = -1;
 	int parent = 0;
+	int len = 0;
+	int total_len = 0;
 
-	while (*p) {
-		while (*p == '/')
-			p++;
+	int i = -1;
+	while (true) {
+		i++;
 
-		if (*p == 0 || (max_len > 0 && p >= &path[max_len]))
-			return -1;
-
-		int len = 0;
-		while (p[len] && p[len] != '/' && !(max_len > 0 && &p[len] >= &path[max_len]))
-			len++;
-
-		if (!(max_len > 0 && &p[len] >= &path[max_len]) && p[len] == '/') {
-			int idx = dirs[parent].first_dir.alpha;
-			while (idx >= 0) {
-				char *name = name_pool.at(dirs[idx].name_idx);
-				int name_len = strlen(name);
-				if (len == name_len && !memcmp(p, name, len)) {
-					break;
-				}
-				idx = dirs[idx].next.alpha;
+		bool last = (max_len > 0 && i >= max_len) || !path[i];
+		if (!last) {
+			char c = path[i];
+			if (c != '/') {
+				len++;
+				total_len++;
+				continue;
 			}
-			if (idx < 0)
-				break;
-
-			parent = idx;
+			if (!len)
+				continue;
 		}
-		else {
-			int idx = dirs[parent].first_file.alpha;
-			while (idx >= 0) {
-				char *name = name_pool.at(files[idx].name_idx);
-				int name_len = strlen(name);
-				if (len == name_len && !memcmp(p, name, len)) {
-					return idx;
-				}
-				idx = files[idx].next.alpha;
-			}
+		else if (!len) {
 			break;
 		}
 
-		p += len + 1;
-	}
-
-	return -1;
-}
-
-int Filesystem::lookup_dir(const char *path, int max_len)
-{
-	if (!path || !path[0] || (path[0] == '/' && !path[1]))
-		return 0;
-
-	const char *p = path;
-	int parent = 0;
-
-	while (*p) {
-		while (*p == '/')
-			p++;
-
-		if (*p == 0 || (max_len > 0 && p >= &path[max_len]))
-			return -1;
-
-		int len = 0;
-		while (p[len] && p[len] != '/' && !(max_len > 0 && &p[len] >= &path[max_len]))
-			len++;
-
-		int idx = dirs[parent].first_dir.alpha;
+		idx = dirs[parent].first_dir.alpha;
 		while (idx >= 0) {
-			char *name = name_pool.at(dirs[idx].name_idx);
-			int name_len = strlen(name);
-			if (len == name_len && !memcmp(p, name, len)) {
+			int n = dirs[idx].name_idx;
+			if (n >= 0 && len == strlen(name_pool.at(n)) && !memcmp(&path[i-len], name_pool.at(n), len))
 				break;
-			}
+
 			idx = dirs[idx].next.alpha;
 		}
-		if (idx < 0)
-			break;
 
-		if (p[len] != '/')
-			return idx;
+		if (idx < 0) {
+			idx = dirs[parent].first_file.alpha;
+			while (idx >= 0) {
+				int n = files[idx].name_idx;
+				if (n >= 0 && len == strlen(name_pool.at(n)) && !memcmp(&path[i-len], name_pool.at(n), len))
+					break;
 
+				idx = files[idx].next.alpha;
+			}
+
+			if (idx >= 0) {
+				if (file_idx) *file_idx = idx;
+			}
+			else {
+				if (dir_idx) *dir_idx = -1;
+				if (file_idx) *file_idx = -1;
+			}
+			return;
+		}
+
+		len = 0;
 		parent = idx;
-		p += len + 1;
+		if (dir_idx) *dir_idx = idx;
+
+		if (last)
+			break;
 	}
 
-	return -1;
+	if (!total_len) {
+		if (dir_idx) *dir_idx = 0;
+		if (file_idx) *file_idx = -1;
+	}
+}
+
+int Filesystem::lookup_dir(const char *path) {
+	int dir;
+	lookup(&dir, nullptr, path, 0);
+	return dir;
+}
+
+int Filesystem::lookup_file(const char *path) {
+	int file;
+	lookup(nullptr, &file, path, 0);
+	return file;
 }
 
 void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, void*), void (*file_cb)(Filesystem*, int, void*), void *cb_data)
