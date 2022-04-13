@@ -1,7 +1,7 @@
 article {
 	font-family: Noto Sans, Gadugi, sans-serif;
 }
-article h1, article h2, article h3 {
+article h1 {
 	font-family: Noto Sans Mono, Source Code Pro, monospace;
 }
 .blog {

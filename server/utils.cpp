@@ -2,24 +2,48 @@
 #include <unistd.h>
 #include "website.h"
 
-const char *lookup_mime_ext(const char *ext)
+bool strings_match(const char *a, const char *b, int len)
+{
+	if (!a && !b)
+		return true;
+	if (!a || !b)
+		return false;
+
+	int b_len = strlen(b);
+	if (b_len != len)
+		return false;
+
+	for (int i = 0; i < len; i++) {
+		if (*a++ != *b++)
+			return false;
+	}
+
+	return true;
+}
+
+HTML_Type lookup_ext(const char *ext)
 {
 	if (!ext)
-		return NULL;
+		return { nullptr, nullptr };
+
+	while (*ext == '.')
+		ext++;
 
 	int len = 0;
 	for (len = 0; ext[len] && ext[len] != ' ' && ext[len] != '\t' && ext[len] != '\r' && ext[len] != '\n'; len++);
 
-	if (!strncmp(ext, "png", len) || !strncmp(ext, "ico", len))
-		return "image/png";
-	if (!strncmp(ext, "css", len))
-		return "text/css";
-	if (!strncmp(ext, "js", len))
-		return "text/js";
-	if (!strncmp(ext, "html", len))
-		return "text/html";
+	if (strings_match(ext, "png", len) || strings_match(ext, "ico", len))
+		return { "image/png", "img" };
+	if (strings_match(ext, "jpg", len) || strings_match(ext, "jpeg", len))
+		return { "image/jpeg", "img" };
+	if (strings_match(ext, "css", len))
+		return { "text/css", "style" };
+	if (strings_match(ext, "js", len))
+		return { "text/js", "script" };
+	if (strings_match(ext, "html", len))
+		return { "text/html", "iframe" };
 
-	return NULL;
+	return { nullptr, nullptr };
 }
 
 void get_datetime(char *buf)

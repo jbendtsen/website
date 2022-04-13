@@ -288,6 +288,8 @@ struct FS_Directory {
 	}
 };
 
+#define FILE_FLAG_ASCII  1
+
 struct FS_File {
 	FS_Next next;
 	int parent;
@@ -297,7 +299,7 @@ struct FS_File {
 	u8 *buffer;
 	int size;
 	u32 crc;
-	long last_reloaded;
+	u32 flags;
 
 	static FS_File make_empty() {
 		return {
@@ -308,7 +310,7 @@ struct FS_File {
 			.modified_time = 0,
 			.buffer = nullptr,
 			.size = 0,
-			.last_reloaded = 0
+			.flags = 0
 		};
 	}
 };
@@ -338,7 +340,12 @@ struct Filesystem {
 	bool add_file_to_html(String *html, const char *path);
 };
 
-const char *lookup_mime_ext(const char *ext);
+struct HTML_Type {
+	const char *mime;
+	const char *tag;
+};
+
+HTML_Type lookup_ext(const char *ext);
 void get_datetime(char *buf);
 void write_http_header(int request_fd, const char *status, const char *content_type, int size);
 void add_banner(Filesystem& fs, String *html, int hl_idx);

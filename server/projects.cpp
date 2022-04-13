@@ -248,12 +248,37 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			html->add("</h1></div>");
 		}
 		else {
-			html->add("<div id=\"proj-header\"><h3>");
+			html->add("<div id=\"proj-header\" class=\"hdr-margin-y\"><h3>");
+			int margin_type_off = html->len - 7;
 			html->add_and_escape(&name[path_start], name_len - path_start);
 			html->add("</h3></div><div id=\"proj-content\"><article>");
 
-			//fs.refresh_file(fidx);
-			render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
+			bool is_code = true;
+			if ((fs.files[fidx].flags & FILE_FLAG_ASCII) == 0) {
+				char *fname = fs.name_pool.at(fs.files[fidx].name_idx);
+				int len = strlen(fname);
+				char *p = &fname[len-1];
+				while (p > fname && *p != '.')
+					p--;
+
+				HTML_Type type = lookup_ext(p);
+				if (type.tag) {
+					is_code = false;
+					html->data()[margin_type_off] = 'n'; // change header class to one that doesn't have a margin
+
+					html->add("<");
+					html->add(type.tag);
+					html->add(" src=\"/");
+					html->add_and_escape(path.data());
+					html->add("\"></");
+					html->add(type.tag);
+					html->add(">");
+				}
+			}
+
+			if (is_code)
+				render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
+
 			html->add("</article></div>");
 		}
 	}

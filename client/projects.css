@@ -127,7 +127,6 @@
 }
 #proj-header {
 	background-color: #f8f8f8;
-	border-left: 80px solid #e8eaec;
 	padding-left: 20px;
 	user-select: none;
 }
@@ -136,6 +135,12 @@
 	font-style: oblique;
 	margin-top: 16px;
 	margin-bottom: 16px;
+}
+.hdr-margin-y {
+	border-left: 80px solid #e8eaec;
+}
+.hdr-margin-n {
+	border-left: 1px solid #ccc;
 }
 #proj-content {
 	flex-grow: 0;

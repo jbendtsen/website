@@ -196,7 +196,7 @@ static void produce_response(char *header, int sz, Response& response, File_Data
 						q--;
 
 					if (q > name)
-						mime = lookup_mime_ext(q+1);
+						mime = lookup_ext(q+1).mime;
 
 					//fs.refresh_file(file);
 					FS_File *f = &fs->files[file];

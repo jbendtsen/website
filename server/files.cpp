@@ -252,11 +252,15 @@ int refresh_file(FS_File *file, const char *path)
 	u32 crc = 0xffffffff;
 	u8 *data = file->buffer;
 	int sz = file->size;
+	bool is_ascii = true;
 
-	for (int i = 0; i < sz; i++)
+	for (int i = 0; i < sz; i++) {
+		is_ascii = is_ascii && (data[i] >= 0x20 && data[i] <= 0x7e);
 		crc = (crc >> 8) ^ crc32_poly8_lookup[(u8)crc ^ data[i]];
+	}
 
 	file->crc = ~crc;
+	file->flags |= is_ascii * FILE_FLAG_ASCII;
 	return 0;
 }
 
