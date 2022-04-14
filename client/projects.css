@@ -9,10 +9,11 @@
 	display: block;
 	text-decoration: none;
 	color: #222;
-	border-right: 1px solid #ccc;
-	border-bottom: 1px solid #ccc;
-	padding-top: 1px;
-	padding-left: 1px;
+	background-color: #f8f8f8;
+	border-top: 1px solid #ddd;
+	border-left: 1px solid #ddd;
+	border-bottom: 1px solid #fff;
+	border-right: 1px solid #fff;
 	width: min(24em, 90vw);
 	margin: 1em;
 }
@@ -27,6 +28,8 @@
 	overflow: clip;
 	height: min(24em, 32vh);
 	padding-top: 0.1em;
+	margin-left: 1.5em;
+	margin-right: 1.5em;
 }
 .proj-overlay {
 	position: absolute;
