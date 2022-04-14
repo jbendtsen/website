@@ -1,4 +1,5 @@
 #include "website.h"
+#include <ctime>
 
 #define TAG_P  0
 #define TAG_H1 1
@@ -20,8 +21,24 @@ static const char *closing_tag_strings[] = {
 	"</li>",
 };
 
-void produce_markdown_html(String& html, const char *input, int in_sz, const char *path, int line_limit)
+static const char *months[] = {
+	"January",
+	"February",
+	"March",
+	"April",
+	"May",
+	"June",
+	"July",
+	"August",
+	"September",
+	"October",
+	"November",
+	"December"
+};
+
+Space produce_markdown_html(String& html, const char *input, int in_sz, const char *path, long created_time, int line_limit)
 {
+	Space title = {0};
 	html.reserve(html.len + in_sz);
 
 	int tag_levels[16] = {0};
@@ -65,7 +82,7 @@ void produce_markdown_html(String& html, const char *input, int in_sz, const cha
 			else if (code_type == 0 && c == '>') {
 				quote_level++;
 			}
-			else if (code_type == 0 && (c == '-' || c == '+')) {
+			else if (code_type == 0 && (c == '-' || c == '+' || c == '*')) {
 				new_list_level = (leading_spaces / 4) + 1;
 				started_line = true;
 			}
@@ -139,6 +156,9 @@ void produce_markdown_html(String& html, const char *input, int in_sz, const cha
 						tag[3] = '>';
 						tag[4] = 0;
 						html.add(tag);
+
+						if (!title.offset)
+							title.offset = i;
 
 						tag_levels[tag_cursor] = header_level;
 					}
@@ -276,10 +296,44 @@ void produce_markdown_html(String& html, const char *input, int in_sz, const cha
 		}
 
 		if (c == '\n') {
+			if (header_level > 0) {
+				while (tag_cursor > 0) {
+					int tag = tag_levels[tag_cursor];
+					const char *tag_str = closing_tag_strings[tag];
+					tag_cursor--;
+
+					html.add(tag_str);
+					if (tag >= 1 && tag <= 6)
+						break;
+				}
+			}
+
+			if (header_level == 1 && !title.size) {
+				title.size = i - title.offset;
+			}
+			else if (header_level == 2 && created_time) {
+				struct tm *date = localtime(&created_time);
+				int day_kind = 0;
+				int day_mod10 = date->tm_mday % 10;
+				if (day_mod10 < 4 && (date->tm_mday < 4 || date->tm_mday > 20))
+					day_kind = day_mod10;
+
+				const char *kinds[] = {"th", "st", "nd", "rd"};
+				char datebuf[128];
+				String date_str(datebuf, 128);
+				date_str.reformat(
+					"<em>{d}{s} {s}, {d}</em>",
+					date->tm_mday, kinds[day_kind], months[date->tm_mon], 1900 + date->tm_year
+				);
+
+				html.add(datebuf);
+				created_time = 0;
+			}
+
+			header_level = 0;
 			started_line = false;
 			should_not_open_tag = false;
 			quote_level = 0;
-			header_level = 0;
 			leading_spaces = 0;
 			new_list_level = 0;
 
@@ -312,4 +366,6 @@ void produce_markdown_html(String& html, const char *input, int in_sz, const cha
 
 		html.add(tag);
 	}
+
+	return title;
 }

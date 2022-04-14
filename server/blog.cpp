@@ -20,7 +20,7 @@ static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
 	//fs.refresh_file(blog_idx);
 
 	html->add("<article class=\"blog\">");
-	produce_article_html(*html, (const char*)file.buffer, file.size, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
+	produce_markdown_html(*html, (const char*)file.buffer, file.size, nullptr, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
 	html->add("</article>");
 
 	html->add("</div></a>");
@@ -117,19 +117,19 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	add_banner(fs, html, NAV_IDX_BLOG);
 
 	html->add("<article class=\"blog\">");
-	Space title_space = produce_article_html(*html, (const char*)file.buffer, file.size, file.created_time, 0);
+	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, nullptr, file.created_time, 0);
 	html->add("</article>");
 
 	html->add("</body></html>");
 
-	int title_len = title_space.size < 113 ? title_space.size : 113;
+	title.size = title.size < 113 ? title.size : 113; // 128 - length("<title>") - length("</title>")
 	char *title_dst = html->data() + title_dst_pos;
 
 	strcpy(title_dst, "<title>");
-	memcpy(title_dst + 7, (const char*)&file.buffer[title_space.offset], title_len);
+	memcpy(title_dst + 7, (const char*)&file.buffer[title.offset], title.size);
 
-	int title_end = 7 + title_len;
-	if (title_len >= 110) {
+	int title_end = 7 + title.size;
+	if (title.size >= 110) {
 		strcpy(title_dst + 117, "...");
 		title_end = 120;
 	}

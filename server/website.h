@@ -352,9 +352,7 @@ void add_banner(Filesystem& fs, String *html, int hl_idx);
 
 void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response);
 
-Space produce_article_html(String& article, const char *input, int in_sz, long created_time, int line_limit);
-
-void produce_markdown_html(String& html, const char *input, int in_sz, const char *path, int line_limit);
+Space produce_markdown_html(String& html, const char *input, int in_sz, const char *path, long created_time, int line_limit);
 
 void serve_404(Filesystem& fs, Response& response);
 void serve_home_page(Filesystem& fs, Response& response);

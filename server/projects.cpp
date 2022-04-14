@@ -111,7 +111,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 
 		//fs.refresh_file(f);
 		html->add("<article class=\"proj-md\">");
-		produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_path.data(), PROJECT_PREVIEW_LINE_LIMIT);
+		produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_path.data(), 0, PROJECT_PREVIEW_LINE_LIMIT);
 		html->add("</article></a>");
 
 		md_path.scrub(pname_len + 1);
@@ -299,7 +299,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			html->add("<div id=\"proj-content\"><article class=\"proj-md\">");
 
 			//fs.refresh_file(f);
-			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0);
+			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0, 0);
 			html->add("</article></div>");
 		}
 	}
