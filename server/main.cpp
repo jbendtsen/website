@@ -320,14 +320,6 @@ static void http_loop(File_Database *global, Filesystem *fs)
 			break;
 		}
 
-		FD_ZERO(&set);
-		FD_SET(fd, &set);
-		select(fd + 1, &set, nullptr, nullptr, nullptr);
-
-		int flags = fcntl(fd, F_GETFL);
-		flags |= O_NONBLOCK;
-		fcntl(fd, F_SETFL, flags);
-
 		int sz = read_request_header(fd, header, 1024);
 		if (sz <= 0) {
 			close(fd);
