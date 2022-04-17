@@ -584,6 +584,9 @@ void Filesystem::walk(int dir_idx, int order, void (*dir_cb)(Filesystem*, int, v
 				lvl_cur++;
 				continue;
 			}
+			else if (lvl_cur == 0) {
+				files_at_top_level = true;
+			}
 		}
 		skip_to_files = false;
 

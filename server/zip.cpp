@@ -34,8 +34,6 @@ static void enum_dirs(Filesystem *fs, int didx, void *data) {
 }
 
 static void enum_files(Filesystem *fs, int fidx, void *data) {
-	//fs->refresh_file(fidx);
-
 	auto stats = (ZIP_Stats*)data;
 	stats->n_entries++; // n_entries
 	stats->total_file_size += (size_t)fs->files[fidx].size; // total_size
