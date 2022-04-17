@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <poll.h>
 #include <sys/signalfd.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
@@ -18,24 +19,122 @@
 
 #define THREAD_FLAG_BUSY     1
 #define THREAD_FLAG_CREATED  2
+#define THREAD_FLAG_PIPES    4
 
 struct Thread {
 	u32 flags;
 	pthread_t handle;
-	int comms_fds[2];
+	int from_main[2];
+	int to_main[2];
+	int conn_fd;
+	String request;
 	Response response;
 };
 
-static void close_thread_pipe(Thread *thread)
+static void close_thread_pipes(Thread *thread)
 {
-	int fds[2];
-	fds[0] = thread->comms_fds[0];
-	thread->comms_fds[0] = 0;
-	fds[1] = thread->comms_fds[1];
-	thread->comms_fds[1] = 0;
+	int fds[4];
+	fds[0] = thread->from_main[0];
+	thread->from_main[0] = 0;
+	fds[1] = thread->from_main[1];
+	thread->from_main[1] = 0;
+	fds[2] = thread->to_main[0];
+	thread->to_main[0] = 0;
+	fds[3] = thread->to_main[1];
+	thread->to_main[1] = 0;
 
 	if (fds[0] > 0) close(fds[0]);
 	if (fds[1] > 0) close(fds[1]);
+	if (fds[2] > 0) close(fds[2]);
+	if (fds[3] > 0) close(fds[3]);
+}
+
+static void receive_request(int fd, String& request)
+{
+	char buf[1024];
+	request.len = 0;
+
+	int flags = fcntl(fd, F_GETFL);
+	flags &= ~O_NONBLOCK;
+	fcntl(fd, F_SETFL, flags);
+
+	struct pollfd pl = { .fd = fd, .events = POLLIN };
+
+	while (true) {
+		poll(&pl, 1, 1000);
+		if ((pl.revents & POLLIN) == 0)
+			break;
+
+		int res = 0;
+		while (true) {
+			res = recv(fd, buf, 1024, 0);
+			if (res < 1)
+				break;
+
+			request.add(buf, res);
+
+			poll(&pl, 1, 0);
+			if ((pl.revents & POLLIN) == 0)
+				break;
+		}
+
+		if (res < 0)
+			break;
+
+		const char *str = request.data();
+		int header_size = -1;
+		int length = 0;
+
+		for (int i = 0; i < request.len-3; i++) {
+			if (str[i] == '\r' && str[i+1] == '\n' && str[i+2] == '\r' && str[i+3] == '\n') {
+				header_size = i + 4;
+				break;
+			}
+			if (i >= request.len-15)
+				continue;
+
+			int j = 0;
+			for (; j < 15; j++) {
+				char a = str[i+j];
+				if (a >= 'A' && a <= 'Z')
+					a += 0x20;
+				if (a != "content-length:"[j])
+					break;
+			}
+			if (j != 15)
+				continue;
+
+			length = 0;
+			for (j = i + 15; j < request.len; j++) {
+				char c = str[j];
+				if (c == '\r' || c == '\n')
+					break;
+
+				if (c >= '0' && c <= '9') {
+					length *= 10;
+					length += c - '0';
+				}
+			}
+		}
+
+		if (header_size > 0) {
+			int left = length - (request.len - header_size);
+			while (left > 0) {
+				poll(&pl, 1, 1000);
+				if ((pl.revents & POLLIN) == 0)
+					break;
+
+				int chunk = left < 1024 ? left : 1024;
+				res = recv(fd, buf, chunk, 0);
+				if (res < 1)
+					break;
+
+				request.add(buf, res);
+				left -= res;
+			}
+			break;
+		}
+	}
 }
 
 static void send_response(Response *res, int fd)
@@ -55,48 +154,40 @@ static void send_response(Response *res, int fd)
 	}
 }
 
-static void *handle_response(void *data)
+static void *handle_socket(void *data)
 {
 	Thread *thread = (Thread*)data;
 
 	while (true) {
 		int request_fd = 0;
-		read(thread->comms_fds[0], &request_fd, sizeof(int));
+		read(thread->from_main[0], &request_fd, sizeof(int));
 
 		if (request_fd < 0)
 			break;
 
-		Response *res = &thread->response;
-		send_response(res, request_fd);
+		if (request_fd > 0) {
+			if (thread->conn_fd > 0)
+				close(thread->conn_fd);
 
-		close(request_fd);
-		thread->flags &= ~THREAD_FLAG_BUSY;
-	}
+			thread->conn_fd = request_fd;
+			receive_request(thread->conn_fd, thread->request);
 
-	close_thread_pipe(thread);
-	return NULL;
-}
-
-static void serve_response(Thread *t, int request_fd)
-{
-	t->flags |= THREAD_FLAG_BUSY;
-
-	if (t->comms_fds[1] <= 0)
-		pipe(t->comms_fds);
-
-	write(t->comms_fds[1], &request_fd, sizeof(int));
-
-	if ((t->flags & THREAD_FLAG_CREATED) == 0) {
-		t->flags |= THREAD_FLAG_CREATED;
-
-		int res = pthread_create(&t->handle, NULL, handle_response, t);
-		if (res != 0) {
-			t->flags = 0;
-			close_thread_pipe(t);
-			log_info("Failed to create thread (pthread_create() returned {d})", res);
-			return;
+			int res = 0;
+			write(thread->to_main[1], &res, 4);
+		}
+		else if (thread->conn_fd > 0) {
+			send_response(&thread->response, thread->conn_fd);
+			close(thread->conn_fd);
+			thread->conn_fd = -1;
+			thread->flags &= ~THREAD_FLAG_BUSY;
 		}
 	}
+
+	if (thread->conn_fd > 0)
+		close(thread->conn_fd);
+
+	close_thread_pipes(thread);
+	return NULL;
 }
 
 void serve_page(Filesystem& fs, Response& response, char *name, int len)
@@ -125,9 +216,10 @@ void serve_page(Filesystem& fs, Response& response, char *name, int len)
 	}
 }
 
-static void produce_response(char *header, int sz, Response& response, File_Database *global, Filesystem *fs)
+static void produce_response(String& request, Response& response, File_Database *global, Filesystem *fs)
 {
-	char *end = &header[sz-1];
+	char *header = request.data();
+	char *end = &header[request.len-1];
 
 	char *p = &header[3];
 	while (IS_SPACE(*p) && p < end)
@@ -225,35 +317,51 @@ static void produce_response(char *header, int sz, Response& response, File_Data
 	serve_page(*fs, response, name, len);
 }
 
-static int read_request_header(int fd, char *buf, int max_len)
+static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
 {
-	int read_fd = fd;
-	if (read_fd == STDOUT_FILENO)
-		read_fd = STDIN_FILENO;
-
-	int sz = read(read_fd, buf, max_len);
-	if (sz < 0) {
-		log_error("read() failed, errno={d}\n", errno);
+	int tidx = -1;
+	for (int i = 0; i < MAX_THREADS; i++) {
+		if ((threads[i].flags & THREAD_FLAG_BUSY) == 0) {
+			tidx = i;
+			break;
+		}
+	}
+	if (tidx < 0) {
+		log_info("Could not find a thread to read the request with");
+		close(fd);
 		return -1;
 	}
-	if (sz <= 4) {
-		log_info("Request was too small ({d} bytes)", sz);
-		return -2;
-	}
-	if (buf[0] != 'G' || buf[1] != 'E' || buf[2] != 'T') {
-		log_info("Discarding request (was not a GET request)");
-		return -3;
-	}
 
-	buf[sz-1] = 0;
-	puts(buf);
+	Thread *t = &threads[tidx];
+	t->flags |= THREAD_FLAG_BUSY;
 
-	if (sz == max_len) {
-		char fluff[256];
-		while (read(read_fd, fluff, 256) == 256);
+	if ((t->flags & THREAD_FLAG_PIPES) == 0) {
+		t->flags |= THREAD_FLAG_PIPES;
+		pipe(t->from_main);
+		pipe(t->to_main);
+
+		poll_list[2 + tidx].fd = t->to_main[0];
+		poll_list[2 + tidx].events = POLLIN;
 	}
 
-	return sz;
+	if ((t->flags & THREAD_FLAG_CREATED) == 0) {
+		t->flags |= THREAD_FLAG_CREATED;
+		int res = pthread_create(&t->handle, NULL, handle_socket, t);
+		if (res != 0) {
+			if (t->flags & THREAD_FLAG_PIPES) {
+				close_thread_pipes(t);
+				poll_list[2 + tidx].fd = -1;
+			}
+
+			t->flags = 0;
+			log_info("Failed to create thread (pthread_create() returned {d})", res);
+			close(fd);
+			return -2;
+		}
+	}
+
+	write(t->from_main[1], &fd, 4);
+	return tidx;
 }
 
 static int cancel_fd = -1;
@@ -293,64 +401,54 @@ static void http_loop(File_Database *global, Filesystem *fs)
 	}
 
 	Thread *threads = new Thread[MAX_THREADS]();
+	int highest_thread_idx = -1;
+
+	auto poll_list = new pollfd[MAX_THREADS + 2]();
+	poll_list[0] = { .fd = cancel_fd, .events = POLLIN };
+	poll_list[1] = { .fd = sock_fd, .events = POLLIN };
 
 	while (true) {
-		fd_set set;
-		FD_ZERO(&set);
-		FD_SET(sock_fd, &set);
+		int n_read_fds = 2 + highest_thread_idx + 1;
+		poll(poll_list, n_read_fds, -1);
 
-		int highest_fd = sock_fd;
-		if (cancel_fd >= 0) {
-			FD_SET(cancel_fd, &set);
-			if (cancel_fd > highest_fd)
-				highest_fd = cancel_fd;
-		}
-
-		select(highest_fd + 1, &set, nullptr, nullptr, nullptr);
-
-		if (cancel_fd >= 0 && FD_ISSET(cancel_fd, &set)) {
+		if (poll_list[0].revents & POLLIN) {
 			log_info("Exiting");
 			break;
 		}
 
-		socklen_t addr_len = sizeof(addr);
-		int fd = accept(sock_fd, addr_ptr, &addr_len);
-		if (fd < 0) {
-			log_error("accept() failed, errno={d}\n", errno);
-			break;
-		}
-
-		int sz = read_request_header(fd, header, 1024);
-		if (sz <= 0) {
-			close(fd);
-			continue;
-		}
-
-		int tidx = -1;
-		for (int i = 0; i < MAX_THREADS; i++) {
-			if ((threads[i].flags & THREAD_FLAG_BUSY) == 0) {
-				tidx = i;
+		if (poll_list[1].revents & POLLIN) {
+			socklen_t addr_len = sizeof(addr);
+			int fd = accept(sock_fd, addr_ptr, &addr_len);
+			if (fd <= 0) {
+				log_error("accept() failed, errno={d}\n", errno);
 				break;
 			}
+
+			int tidx = delegate_socket(threads, poll_list, fd);
+			if (tidx > highest_thread_idx)
+				highest_thread_idx = tidx;
 		}
 
-		if (tidx < 0) {
-			log_info("Could not find a thread to respond with");
-			close(fd);
-			continue;
+		for (int i = 2; i < n_read_fds; i++) {
+			if ((poll_list[i].revents & POLLIN) == 0)
+				continue;
+
+			int res = 0;
+			read(poll_list[i].fd, &res, 4);
+
+			Thread *t = &threads[i - 2];
+			produce_response(t->request, t->response, global, fs);
+
+			res = 0;
+			write(t->from_main[1], &res, 4);
 		}
-
-		produce_response(header, sz, threads[tidx].response, global, fs);
-
-		// the responding thread is responsible for closing the connection
-		serve_response(&threads[tidx], fd);
 	}
 
 	close(sock_fd);
 
 	for (int i = 0; i < MAX_THREADS; i++) {
 		if (threads[i].flags & THREAD_FLAG_CREATED) {
-			int fd = threads[i].comms_fds[1];
+			int fd = threads[i].from_main[1];
 			if (fd > 0) {
 				int msg = -1;
 				write(fd, &msg, sizeof(int));
@@ -390,23 +488,7 @@ int main()
 	Filesystem *fs = new Filesystem();
 	fs->init_at(".", allowed_dirs, list_dir_buffer);
 
-#ifdef DEBUG
-	char header[1024];
-	Response response;
-
-	while (true) {
-		log_info("");
-
-		int sz = read_request_header(STDIN_FILENO, header, 1024);
-		if (sz <= 0)
-			break;
-
-		produce_response(header, sz, response, global, fs);
-		send_response(&response, STDOUT_FILENO);
-	}
-#else
 	http_loop(global, fs);
-#endif
 
 	if (cancel_fd >= 0) close(cancel_fd);
 

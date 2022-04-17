@@ -254,14 +254,16 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 				for (; j < in_sz && input[j] != ')'; j++);
 
-				html.add_and_escape(&input[link], j - link);
+				if (j > link)
+					html.add_and_escape(&input[link], j - link);
 
 				if (prev == '!')
 					html.add("\" alt=\"");
 				else
 					html.add("\">");
 
-				html.add_and_escape(&input[alt], alt_end - alt);
+				if (alt_end > alt)
+					html.add_and_escape(&input[alt], alt_end - alt);
 
 				if (prev == '!')
 					html.add("\">");
