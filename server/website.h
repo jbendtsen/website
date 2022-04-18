@@ -223,6 +223,18 @@ struct Inline_Vector {
 	}
 };
 
+struct HTML_Type {
+	const char *mime;
+	const char *tag;
+};
+
+struct Request {
+	String str;
+	HTML_Type content;
+	int header_size;
+	int accept;
+};
+
 struct Response {
 	int type;
 	int file_size;
@@ -341,11 +353,6 @@ struct Filesystem {
 	bool add_file_to_html(String *html, const char *path);
 };
 
-struct HTML_Type {
-	const char *mime;
-	const char *tag;
-};
-
 HTML_Type lookup_ext(const char *ext);
 void get_datetime(char *buf);
 void write_http_header(int request_fd, const char *status, const char *content_type, int size);
@@ -354,6 +361,7 @@ void add_banner(Filesystem& fs, String *html, int hl_idx);
 void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response);
 
 Space produce_markdown_html(String& html, const char *input, int in_sz, const char *path, long created_time, int line_limit);
+void serve_markdown_tester(Filesystem& fs, Request& request, Response& response);
 
 void serve_404(Filesystem& fs, Response& response);
 void serve_home_page(Filesystem& fs, Response& response);

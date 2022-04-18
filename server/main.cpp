@@ -27,7 +27,7 @@ struct Thread {
 	int from_main[2];
 	int to_main[2];
 	int conn_fd;
-	String request;
+	Request request;
 	Response response;
 };
 
@@ -49,15 +49,16 @@ static void close_thread_pipes(Thread *thread)
 	if (fds[3] > 0) close(fds[3]);
 }
 
-static void receive_request(int fd, String& request)
+static void receive_request(int fd, Request& request)
 {
 	char buf[1024];
-	request.len = 0;
+	request.str.len = 0;
 
 	int flags = fcntl(fd, F_GETFL);
 	flags &= ~O_NONBLOCK;
 	fcntl(fd, F_SETFL, flags);
 
+	request.header_size = 0;
 	struct pollfd pl = { .fd = fd, .events = POLLIN };
 
 	while (true) {
@@ -71,7 +72,11 @@ static void receive_request(int fd, String& request)
 			if (res < 1)
 				break;
 
-			request.add(buf, res);
+			request.str.add(buf, res);
+			if (request.str.len >= 1024*1024) {
+				res = -1;
+				break;
+			}
 
 			poll(&pl, 1, 0);
 			if ((pl.revents & POLLIN) == 0)
@@ -81,16 +86,15 @@ static void receive_request(int fd, String& request)
 		if (res < 0)
 			break;
 
-		const char *str = request.data();
-		int header_size = -1;
+		const char *str = request.str.data();
 		int length = 0;
 
-		for (int i = 0; i < request.len-3; i++) {
+		for (int i = 0; i < request.str.len-3; i++) {
 			if (str[i] == '\r' && str[i+1] == '\n' && str[i+2] == '\r' && str[i+3] == '\n') {
-				header_size = i + 4;
+				request.header_size = i + 4;
 				break;
 			}
-			if (i >= request.len-15)
+			if (i >= request.str.len-15)
 				continue;
 
 			int j = 0;
@@ -105,7 +109,7 @@ static void receive_request(int fd, String& request)
 				continue;
 
 			length = 0;
-			for (j = i + 15; j < request.len; j++) {
+			for (j = i + 15; j < request.str.len; j++) {
 				char c = str[j];
 				if (c == '\r' || c == '\n')
 					break;
@@ -117,9 +121,9 @@ static void receive_request(int fd, String& request)
 			}
 		}
 
-		if (header_size > 0) {
-			int left = length - (request.len - header_size);
-			while (left > 0) {
+		if (request.header_size > 0) {
+			int left = length - (request.str.len - request.header_size);
+			while (left > 0 && request.str.len < 1024*1024) {
 				poll(&pl, 1, 1000);
 				if ((pl.revents & POLLIN) == 0)
 					break;
@@ -129,12 +133,15 @@ static void receive_request(int fd, String& request)
 				if (res < 1)
 					break;
 
-				request.add(buf, res);
+				request.str.add(buf, res);
 				left -= res;
 			}
 			break;
 		}
 	}
+
+	if (request.header_size <= 0)
+		request.header_size = request.str.len;
 }
 
 static void send_response(Response *res, int fd)
@@ -190,7 +197,7 @@ static void *handle_socket(void *data)
 	return NULL;
 }
 
-void serve_page(Filesystem& fs, Response& response, char *name, int len)
+void serve_page(Filesystem& fs, Request& request, Response& response, char *name, int len)
 {
 	if (!name || !len) {
 		serve_home_page(fs, response);
@@ -211,20 +218,42 @@ void serve_page(Filesystem& fs, Response& response, char *name, int len)
 			serve_projects_overview(fs, response);
 		}
 	}
+	else if (!memcmp(name, "markdown", 8)) {
+		serve_markdown_tester(fs, request, response);
+	}
 	else {
 		serve_404(fs, response);
 	}
 }
 
-static void produce_response(String& request, Response& response, File_Database *global, Filesystem *fs)
+static void produce_response(Request& request, Response& response, File_Database *global, Filesystem *fs)
 {
-	char *header = request.data();
-	char *end = &header[request.len-1];
+	char *header = request.str.data();
+	char *end = &header[request.header_size-1];
+
+	log_info("{S}", header, request.header_size);
 
 	char *p = &header[3];
 	while (IS_SPACE(*p) && p < end)
 		p++;
 	p++;
+
+	char *q = p;
+	request.accept = 0;
+	while (q < end-8 && *q) {
+		int i;
+		for (i = 0; i < 8; i++) {
+			char c = q[i];
+			if (c >= 'A' && c <= 'Z')
+				c += 0x20;
+			if (c != "\naccept:"[i])
+				break;
+		}
+		if (i == 8) {
+			request.accept = (q + 8) - header;
+		}
+		q++;
+	}
 
 	char *name = NULL;
 	int len = 0;
@@ -238,25 +267,9 @@ static void produce_response(String& request, Response& response, File_Database 
 			p++;
 
 		len = p - name;
-
-		char *q = p;
-		char *accept_types = NULL;
-		while (q < end-8 && *q) {
-			int i = 0;
-			for (; i < 8; i++) {
-				if (q[i] != "\nAccept:"[i])
-					break;
-			}
-			if (i == 8) {
-				accept_types = q + 8;
-				break;
-			}
-			q++;
-		}
-
 		bool allow_html = true;
 
-		if (accept_types) {
+		if (request.accept > 0) {
 			allow_html = false;
 
 			while (q < end-4 && *q && *q != '\r' && *q != '\n') {
@@ -314,7 +327,7 @@ static void produce_response(String& request, Response& response, File_Database 
 
 	response.type = RESPONSE_HTML;
 	response.html.resize(0);
-	serve_page(*fs, response, name, len);
+	serve_page(*fs, request, response, name, len);
 }
 
 static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
@@ -327,7 +340,7 @@ static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
 		}
 	}
 	if (tidx < 0) {
-		log_info("Could not find a thread to read the request with");
+		log_error("Could not find a thread to read the request with");
 		close(fd);
 		return -1;
 	}
@@ -354,7 +367,7 @@ static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
 			}
 
 			t->flags = 0;
-			log_info("Failed to create thread (pthread_create() returned {d})", res);
+			log_error("Failed to create thread (pthread_create() returned {d})", res);
 			close(fd);
 			return -2;
 		}

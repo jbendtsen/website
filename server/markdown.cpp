@@ -11,14 +11,14 @@
 #define TAG_LI 7
 
 static const char *closing_tag_strings[] = {
-	"</p>",
-	"</h1>",
-	"</h2>",
-	"</h3>",
-	"</h4>",
-	"</h5>",
-	"</h6>",
-	"</li>",
+	"</p>\n",
+	"</h1>\n",
+	"</h2>\n",
+	"</h3>\n",
+	"</h4>\n",
+	"</h5>\n",
+	"</h6>\n",
+	"</li>\n",
 };
 
 static const char *months[] = {
@@ -356,11 +356,11 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	}
 
 	if (code_type)
-		html.add("</code>");
+		html.add("</code>\n");
 	if (is_bold)
-		html.add("</strong>");
+		html.add("</strong>\n");
 	if (is_italic)
-		html.add("</em>");
+		html.add("</em>\n");
 
 	while (tag_cursor > 0) {
 		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
@@ -370,4 +370,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	}
 
 	return title;
+}
+
+void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
+{
+	
 }
