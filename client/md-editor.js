@@ -27,3 +27,29 @@ function mdedit_listener() {
     contents = contents.replaceAll("&gt;", ">");
     get_markdown_render(contents).then(set_markdown_preview);
 }
+
+var dragging = false;
+
+function start_dragging() {
+	document.body.style.userSelect = "none";
+	dragging = true;
+}
+
+function stop_dragging() {
+	dragging = false;
+	document.body.style.userSelect = "auto";
+}
+
+function global_mouse_handler(e) {
+	if ((e.buttons & 1) == 0)
+		stop_dragging();
+	if (!dragging)
+		return;
+
+	e = e || window.event;
+	e.preventDefault();
+	e.stopPropagation();
+	e.cancelBubble = true;
+
+	document.getElementById("mdedit-left").style.width = "" + e.screenX + "px";
+}

@@ -1,23 +1,48 @@
 #mdedit-main {
-    display: flex;
-    margin-left: 6px;
-    margin-right: 6px;
+	flex-grow: 1;
+	display: flex;
+	flex-direction: row;
+	/*align-items: flex-start;*/
+	padding-left: 6px;
+	padding-right: 6px;
+	padding-bottom: 6px;
+}
+#mdedit-left {
+	position: relative;
+	width: 48vw;
+}
+#mdedit-right {
+	position: relative;
+	flex-grow: 1;
+}
+.mdedit-container {
+	position: absolute;
+	top: 44px;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 0.5em;
+	border: 1px solid #444;
+	overflow-x: auto;
+	overflow-y: auto;
 }
 #mdedit-editor {
-    flex-grow: 1;
-    width: 48vw;
-    border: 1px solid #444;
-    background-color: #eee;
-    font-family: monospace;
+	font-family: monospace;
+	white-space: nowrap;
+	width: fit-content;
+	min-width: 100%;
+	min-height: 100%;
+	outline: 0;
 }
 #mdedit-separator {
-    cursor: ew-resize;
-    width: 2px;
-    border-left: 6px solid #fff;
-    border-right: 6px solid #fff;
-    background-color: #444;
+	cursor: ew-resize;
+	width: 2px;
+	border-left: 6px solid #fff;
+	border-right: 6px solid #fff;
+	background-color: #888;
 }
 #mdedit-preview {
-    min-height: 200px;
-    border: 1px solid #444;
+	min-height: 200px;
+	padding-left: 4px;
+	padding-right: 4px;
 }

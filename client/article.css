@@ -41,6 +41,13 @@ article h1 {
 	font-size: 110%;
 	background-color: #eee;
 }
+.code-nowrap {
+	white-space: nowrap;
+	tab-size: 4;
+	font-family: monospace;
+	font-size: 110%;
+	background-color: #eee;
+}
 .quote {
 	white-space: pre-wrap;
 	font-style: oblique;

@@ -396,23 +396,41 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 	}
 
 	String *html = &response.html;
-	html->add("<!DOCTYPE html><html><head>"
+	html->add(
+		"<!DOCTYPE html><html class=\"full\"><head>"
 		"<meta charset=\"UTF-8\">"
-		"<title>Markdown Editor</title><style>\n");
+		"<title>Markdown Editor</title><style>\n"
+	);
 
 	fs.add_file_to_html(html, "client/banner.css");
+	fs.add_file_to_html(html, "client/article.css");
+	html->add(
+		"article h1 { font-size: 200%; }\n"
+		"article h2 { font-size: 150%; }\n"
+		"article h3 { font-size: 120%; }\n"
+	);
 	fs.add_file_to_html(html, "client/md-editor.css");
+
 	html->add("</style><script>");
 	fs.add_file_to_html(html, "client/md-editor.js");
-	html->add("</script></head><body>");
+
+	html->add(
+		"</script></head>"
+		"<body class=\"full\" onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\">"
+		"<div class=\"full flex-column\">"
+	);
 
 	add_banner(fs, html, NAV_IDX_NULL);
 
 	html->add("<div id=\"mdedit-main\">"
-		"<div class=\"flex-column\"><p>Editor</p><div id=\"mdedit-editor\" contenteditable=\"true\" oninput=\"mdedit_listener()\"></div></div>"
-		"<div id=\"mdedit-separator\"></div>"
-		"<div class=\"flex-column flex-g\"><p>Preview</p><div id=\"mdedit-preview\"></div></div>"
+		"<div id=\"mdedit-left\"><p>Editor</p><div class=\"mdedit-container code-nowrap\">"
+			"<div id=\"mdedit-editor\" contenteditable=\"true\" oninput=\"mdedit_listener()\"></div>"
+		"</div></div>"
+		"<div id=\"mdedit-separator\" onmousedown=\"start_dragging()\"></div>"
+		"<div id=\"mdedit-right\"><p>Preview</p><div class=\"mdedit-container\">"
+			"<article id=\"mdedit-preview\"></article>"
+		"</div></div>"
 		"</div>");
 
-	html->add("</body></html>");
+	html->add("</div></body></html>");
 }
