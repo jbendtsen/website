@@ -33,7 +33,6 @@ nav {
 }
 .nav-item :hover {
 	color: #222;
-	text-decoration: underline;
 }
 .nav-item.nav-item-cur span {
 	color: #444;

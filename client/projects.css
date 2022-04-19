@@ -86,7 +86,7 @@
 	text-decoration: none;
 	color: #222;
 }
-#proj-name:hover {
+#proj-name a:hover {
 	text-decoration: underline;
 }
 #proj-tree {
@@ -96,15 +96,22 @@
 }
 #proj-tree ul {
 	list-style-type: none;
-	padding-left: 1.5em;
+	padding-left: 1em;
+	padding-right: 1em;
 	font-family: monospace;
 	color: #222;
 }
 #proj-tree li {
 	font-style: oblique;
+	padding-left: 0.5em;
+	padding-right: 0.5em;
 }
 #proj-tree a {
+	display: inline-block;
+	width: 100%;
+	overflow: clip;
 	color: #222;
+	text-decoration: inherit;
 }
 .proj-tree-item {
 	cursor: pointer;
@@ -112,6 +119,7 @@
 }
 .proj-tree-item:hover {
 	text-decoration: underline;
+	background-color: #ccc;
 }
 #proj-download {
 	font-size: 80%;
