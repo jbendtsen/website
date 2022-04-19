@@ -21,6 +21,7 @@
 #define THREAD_FLAG_CREATED  2
 #define THREAD_FLAG_PIPES    4
 
+// Should some of these fields be atomic?
 struct Thread {
 	u32 flags;
 	pthread_t handle;
@@ -146,16 +147,16 @@ static void receive_request(int fd, Request& request)
 
 static void send_response(Response *res, int fd)
 {
-	if (res->type == RESPONSE_FILE) {
-		char *mime = res->html.data();
-		write_http_header(fd, res->status, mime, res->file_size);
+	if (res->format == RESPONSE_FILE) {
+		write_http_header(fd, res->status, res->mime, res->file_size);
 		write(fd, res->file_buffer, res->file_size);
 	}
-	else if (res->type == RESPONSE_HTML) {
-		write_http_header(fd, res->status, "text/html", res->html.len);
+	else if (res->format == RESPONSE_HTML) {
+		write_http_header(fd, res->status, res->mime, res->html.len);
 		write(fd, res->html.data(), res->html.len);
 	}
-	else if (res->type == RESPONSE_MULTI) {
+	else if (res->format == RESPONSE_MULTI) {
+		// It's assumed that the first message in this list contains the HTTP headers
 		auto msg = (struct msghdr*)res->html.data();
 		sendmsg(fd, msg, 0);
 	}
@@ -233,7 +234,11 @@ static void produce_response(Request& request, Response& response, File_Database
 
 	log_info("{S}", header, request.header_size);
 
-	char *p = &header[3];
+	char *p = header;
+	// move past method
+	while (!IS_SPACE(*p) && p < end)
+		p++;
+	// move to url
 	while (IS_SPACE(*p) && p < end)
 		p++;
 	p++;
@@ -258,8 +263,9 @@ static void produce_response(Request& request, Response& response, File_Database
 	char *name = NULL;
 	int len = 0;
 
-	// default value, should be changed if the request/response doesn't succeed
+	// default values
 	response.status = "200 OK";
+	response.mime = "text/html";
 
 	if (!IS_SPACE(*p)) {
 		name = p;
@@ -314,9 +320,9 @@ static void produce_response(Request& request, Response& response, File_Database
 				if (!mime)
 					mime = "text/plain";
 
-				response.type = RESPONSE_FILE;
+				response.format = RESPONSE_FILE;
 				response.html.resize(0);
-				response.html.add(mime);
+				response.mime = mime;
 				response.file_size = size;
 				response.file_buffer = buffer;
 
@@ -325,7 +331,7 @@ static void produce_response(Request& request, Response& response, File_Database
 		}
 	}
 
-	response.type = RESPONSE_HTML;
+	response.format = RESPONSE_HTML;
 	response.html.resize(0);
 	serve_page(*fs, request, response, name, len);
 }

@@ -217,7 +217,7 @@ static void write_file_central(Filesystem *fs, int fidx, void *data)
 //  then writes the output as a scattered set of messages to the given socket
 void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response)
 {
-	response.type = RESPONSE_MULTI;
+	response.format = RESPONSE_MULTI;
 
 	ZIP_Stats stats = {0};
 	stats.top_dir = dir_idx;

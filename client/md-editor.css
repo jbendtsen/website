@@ -1,0 +1,23 @@
+#mdedit-main {
+    display: flex;
+    margin-left: 6px;
+    margin-right: 6px;
+}
+#mdedit-editor {
+    flex-grow: 1;
+    width: 48vw;
+    border: 1px solid #444;
+    background-color: #eee;
+    font-family: monospace;
+}
+#mdedit-separator {
+    cursor: ew-resize;
+    width: 2px;
+    border-left: 6px solid #fff;
+    border-right: 6px solid #fff;
+    background-color: #444;
+}
+#mdedit-preview {
+    min-height: 200px;
+    border: 1px solid #444;
+}

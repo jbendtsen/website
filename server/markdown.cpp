@@ -374,5 +374,45 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 {
-	
+	bool allow_html = false;
+	if (request.accept > 0) {
+		char *p = request.str.data() + request.accept;
+		while (*p && *p != '\r' && *p != '\n') {
+			if (p[0] == 'h' && p[1] == 't' && p[2] == 'm' && p[3] == 'l') {
+				allow_html = true;
+				break;
+			}
+			p++;
+		}
+	}
+
+	if (!allow_html) {
+		const char *md_text = request.str.data() + request.header_size;
+		int md_len = request.str.len - request.header_size;
+
+		response.mime = "text/plain";
+		produce_markdown_html(response.html, md_text, md_len, nullptr, 0, 0);
+		return;
+	}
+
+	String *html = &response.html;
+	html->add("<!DOCTYPE html><html><head>"
+		"<meta charset=\"UTF-8\">"
+		"<title>Markdown Editor</title><style>\n");
+
+	fs.add_file_to_html(html, "client/banner.css");
+	fs.add_file_to_html(html, "client/md-editor.css");
+	html->add("</style><script>");
+	fs.add_file_to_html(html, "client/md-editor.js");
+	html->add("</script></head><body>");
+
+	add_banner(fs, html, NAV_IDX_NULL);
+
+	html->add("<div id=\"mdedit-main\">"
+		"<div class=\"flex-column\"><p>Editor</p><div id=\"mdedit-editor\" contenteditable=\"true\" oninput=\"mdedit_listener()\"></div></div>"
+		"<div id=\"mdedit-separator\"></div>"
+		"<div class=\"flex-column flex-g\"><p>Preview</p><div id=\"mdedit-preview\"></div></div>"
+		"</div>");
+
+	html->add("</body></html>");
 }

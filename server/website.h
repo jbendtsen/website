@@ -230,16 +230,16 @@ struct HTML_Type {
 
 struct Request {
 	String str;
-	HTML_Type content;
 	int header_size;
 	int accept;
 };
 
 struct Response {
-	int type;
+	int format;
 	int file_size;
 	char *file_buffer;
 	const char *status;
+	const char *mime;
 	String html;
 };
 
