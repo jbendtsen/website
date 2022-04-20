@@ -51,5 +51,5 @@ function global_mouse_handler(e) {
 	e.stopPropagation();
 	e.cancelBubble = true;
 
-	document.getElementById("mdedit-left").style.width = "" + e.screenX + "px";
+	document.getElementById("mdedit-left").style.width = "" + (e.screenX - 13) + "px";
 }

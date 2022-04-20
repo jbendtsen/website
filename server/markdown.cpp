@@ -43,6 +43,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 	int tag_levels[16] = {0};
 	int tag_cursor = 0;
+	int tag_of_prev_line = 0;
 	int header_level = 0;
 	int quote_level = 0;
 	int code_level = 0;
@@ -67,6 +68,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	for (int i = 0; i < in_sz; i++) {
 		char c = input[i];
 		bool should_process = true;
+		bool is_list_asterisk = false;
 
 		chbuf[0] = c;
 		chbuf[1] = 0;
@@ -83,8 +85,11 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 				quote_level++;
 			}
 			else if (code_type == 0 && (c == '-' || c == '+' || c == '*')) {
-				new_list_level = (leading_spaces / 4) + 1;
-				started_line = true;
+				if (i < in_sz-1 && input[i+1] == ' ') {
+					new_list_level = (leading_spaces / 4) + 1;
+					started_line = true;
+					is_list_asterisk = c == '*';
+				}
 			}
 			else if (code_type == 0 && c == '#') {
 				header_level++;
@@ -100,8 +105,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 				if (tag_cursor > 0) {
 					int prev_cursor = tag_cursor;
 					int tag = tag_levels[tag_cursor];
-					if (tag == TAG_P && prev_line_len > 1) {
-						html.add("<br>");
+					if (tag == TAG_P && tag_of_prev_line == TAG_P && !header_level && !new_list_level && prev_line_len > 1) {
+						html.add("&nbsp;");
 						should_not_open_tag = true;
 					}
 					else {
@@ -181,6 +186,23 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			}
 		}
 
+		if (c == '*' && !was_esc && !is_list_asterisk) {
+			consq_asterisks++;
+		}
+		else {
+			if (consq_asterisks & 1) {
+				html.add(is_italic ? "</em>" : "<em>");
+				is_italic = !is_italic;
+			}
+			if (consq_asterisks & 2) {
+				html.add(is_bold ? "</strong>" : "<strong>");
+				is_bold = !is_bold;
+			}
+			consq_asterisks = 0;
+		}
+
+		int prev_backticks = consq_backticks;
+
 		if (c == '`' && !was_esc) {
 			// this avoids the case where a code block is formed using leading spaces, since code_level would equal 0
 			consq_backticks++;
@@ -188,32 +210,23 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 		else {
 			if (code_type == 1 && consq_backticks == code_level) {
 				code_level = 0;
-				html.add("</code>");
+				html.add(consq_backticks >= 3 ? "</div>" : "</code>");
 				code_type = 0;
 			}
 			else if (code_type == 0 && consq_backticks) {
 				code_level = consq_backticks;
-				html.add("<code>");
+				html.add(consq_backticks >= 3 ? "<div class=\"code block\">" : "<code>");
 				code_type = 1;
 			}
 			consq_backticks = 0;
 		}
 
-		if (c == '*' && !was_esc) {
-			consq_asterisks++;
-		}
-		else {
-			consq_asterisks = 0;
-		}
-
 		if (code_type != 0) {
 			should_process = false;
 
-			if (c != '`') {
-				char back = '`';
-				for (int j = 0; j < consq_backticks; j++) {
+			if (c != '`' && !(prev_backticks > 0 && c == '\n')) {
+				for (int j = 0; j < consq_backticks; j++)
 					html.add("`");
-				}
 
 				if (NEEDS_ESCAPE(c))
 					write_escaped_byte(c, chbuf);
@@ -281,15 +294,6 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			}
 
 			if (should_add_c) {
-				if (consq_asterisks & 1) {
-					html.add(is_italic ? "</em>" : "<em>");
-					is_italic = !is_italic;
-				}
-				if (consq_asterisks & 2) {
-					html.add(is_bold ? "</strong>" : "<strong>");
-					is_bold = !is_bold;
-				}
-
 				if (NEEDS_ESCAPE(c))
 					write_escaped_byte(c, chbuf);
 
@@ -333,6 +337,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			}
 
 			header_level = 0;
+			tag_of_prev_line = tag_levels[tag_cursor];
 			started_line = false;
 			should_not_open_tag = false;
 			quote_level = 0;

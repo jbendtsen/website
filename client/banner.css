@@ -10,7 +10,7 @@ nav {
 	position: relative;
 	min-height: 4.5em;
 	border-bottom: 1px solid #ccc;
-	background-color: #e8eaec;
+	background-color: #303440;
 }
 #inner-nav {
 	position: absolute;
@@ -32,25 +32,28 @@ nav {
 	padding-right: 1em;
 }
 .nav-item :hover {
-	color: #222;
+	color: #fff0a0;
 }
 .nav-item.nav-item-cur span {
-	color: #444;
+	color: #dde;
+}
+.nav-item.nav-item-cur span:hover {
+	color: #fff0a0;
 }
 .nav-item span {
-	color: #999;
+	color: #bbc;
 	font-size: 1.5em;
 	font-weight: bold;
 	margin-top: 0.3em;
 }
 
 .button:hover {
-	background-color: #28f;
+	background-color: #26f;
 }
 .button {
 	font-family: Noto Sans, Gadugi, sans-serif;
 	font-weight: bold;
-	background-color: #69f;
+	background-color: #48f;
 	color: #f8f8f8;
 	padding: 0.8em;
 }

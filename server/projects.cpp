@@ -251,7 +251,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			html->add("<div id=\"proj-header\" class=\"hdr-margin-y\"><h3>");
 			int margin_type_off = html->len - 7;
 			html->add_and_escape(&name[path_start], name_len - path_start);
-			html->add("</h3></div><div id=\"proj-content\"><article>");
+			html->add("</h3></div><div id=\"proj-content\">");
 
 			bool is_code = true;
 			if ((fs.files[fidx].flags & FILE_FLAG_ASCII) == 0) {
@@ -279,7 +279,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			if (is_code)
 				render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
 
-			html->add("</article></div>");
+			html->add("</div>");
 		}
 	}
 	else {
