@@ -16,16 +16,16 @@ function set_markdown_preview(html) {
     document.getElementById("mdedit-preview").innerHTML = html;
 }
 
-function mdedit_listener() {
-    var contents = document.getElementById("mdedit-editor").innerHTML;
-    contents = contents.replaceAll("<div>", "");
-    contents = contents.replaceAll("</div>", "\n");
-    contents = contents.replaceAll("<br>", "\n");
-    contents = contents.replaceAll("&nbsp;", " ");
-    contents = contents.replaceAll("&amp;", "&");
-    contents = contents.replaceAll("&lt;", "<");
-    contents = contents.replaceAll("&gt;", ">");
-    get_markdown_render(contents).then(set_markdown_preview);
+function mdedit_listener(text) {
+    //var contents = document.getElementById("mdedit-editor").innerHTML;
+    text = text.replaceAll("<div>", "")
+    	.replaceAll("</div>", "\n")
+    	.replaceAll("<br>", "\n")
+    	.replaceAll("&nbsp;", " ")
+    	.replaceAll("&amp;", "&")
+    	.replaceAll("&lt;", "<")
+    	.replaceAll("&gt;", ">");
+    get_markdown_render(text).then(set_markdown_preview);
 }
 
 var dragging = false;
@@ -51,5 +51,5 @@ function global_mouse_handler(e) {
 	e.stopPropagation();
 	e.cancelBubble = true;
 
-	document.getElementById("mdedit-left").style.width = "" + (e.screenX - 13) + "px";
+	document.getElementById("mdedit-left").style.width = "" + (e.clientX - 13) + "px";
 }

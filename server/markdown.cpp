@@ -50,7 +50,11 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	int list_level = 0;
 	int new_list_level = 0;
 	int consq_backticks = 0;
+	int consq_tildes = 0;
 	int consq_asterisks = 0;
+	int level_asterisks = 0;
+	int consq_underscores = 0;
+	int level_underscores = 0;
 	int leading_spaces = 0;
 	int nl_count = 0;
 	int prev_line_len = 0;
@@ -58,8 +62,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	int code_type = 0;
 	bool should_not_open_tag = false;
 	bool started_line = false;
-	bool is_italic = false;
-	bool is_bold = false;
+	bool is_strikethrough = false;
 	bool was_esc = false;
 	char prev = 0;
 
@@ -186,19 +189,45 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			}
 		}
 
-		if (c == '*' && !was_esc && !is_list_asterisk) {
-			consq_asterisks++;
-		}
-		else {
-			if (consq_asterisks & 1) {
-				html.add(is_italic ? "</em>" : "<em>");
-				is_italic = !is_italic;
+		if (code_type == 0) {
+			int prev_em = level_asterisks + level_underscores;
+
+			if (c == '*' && !was_esc && !is_list_asterisk) {
+				consq_asterisks++;
+				should_process = false;
 			}
-			if (consq_asterisks & 2) {
-				html.add(is_bold ? "</strong>" : "<strong>");
-				is_bold = !is_bold;
+			else {
+				level_asterisks = level_asterisks ? 0 : consq_asterisks;
+				consq_asterisks = 0;
 			}
-			consq_asterisks = 0;
+
+			if (c == '_' && !was_esc) {
+				consq_underscores++;
+				should_process = false;
+			}
+			else {
+				level_underscores = level_underscores ? 0 : consq_underscores;
+				consq_underscores = 0;
+			}
+
+			int diff_em = (level_asterisks + level_underscores) - prev_em;
+			if (diff_em < -2) diff_em = -2;
+			if (diff_em > 2)  diff_em = 2;
+
+			const char *em_tags[] = { "</strong>", "</em>", "", "<em>", "</strong>" };
+			html.add(em_tags[diff_em + 2]);
+
+			if (c == '~' && !was_esc) {
+				consq_tildes++;
+				should_process = false;
+			}
+			else {
+				if (consq_tildes == 2) {
+					is_strikethrough = !is_strikethrough;
+					html.add(is_strikethrough ? "<s>" : "</s>");
+				}
+				consq_tildes = 0;
+			}
 		}
 
 		int prev_backticks = consq_backticks;
@@ -290,7 +319,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 		if (should_process) {
 			bool should_add_c = true;
 			if (!was_esc) {
-				should_add_c = c != '\\' && c != '\n' && c != '*' && c != '`';
+				should_add_c = c != '\\' && c != '\n';
 			}
 
 			if (should_add_c) {
@@ -362,10 +391,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 	if (code_type)
 		html.add("</code>\n");
-	if (is_bold)
-		html.add("</strong>\n");
-	if (is_italic)
-		html.add("</em>\n");
+	if (is_strikethrough)
+		html.add("</s>\n");
 
 	while (tag_cursor > 0) {
 		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];
@@ -417,11 +444,12 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 	fs.add_file_to_html(html, "client/md-editor.css");
 
 	html->add("</style><script>");
+	fs.add_file_to_html(html, "client/code-editor.js");
 	fs.add_file_to_html(html, "client/md-editor.js");
 
 	html->add(
 		"</script></head>"
-		"<body class=\"full\" onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\">"
+		"<body class=\"full\" onload=\"load_code_editors()\" onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\">"
 		"<div class=\"full flex-column\">"
 	);
 
@@ -429,9 +457,9 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 	html->add("<div id=\"mdedit-main\">"
 		"<div id=\"mdedit-left\"><p>Editor</p><div class=\"mdedit-container code-nowrap\">"
-			"<div id=\"mdedit-editor\" contenteditable=\"true\" oninput=\"mdedit_listener()\"></div>"
+			"<canvas id=\"mdedit-editor\" class=\"code-editor\" data-listener=\"mdedit_listener\" tabindex=\"0\"></canvas>"
 		"</div></div>"
-		"<div id=\"mdedit-separator\" onmousedown=\"start_dragging()\"></div>"
+		"<div id=\"mdedit-separator\" onmousedown=\"start_dragging();\"></div>"
 		"<div id=\"mdedit-right\"><p>Preview</p><div class=\"mdedit-container\">"
 			"<article id=\"mdedit-preview\"></article>"
 		"</div></div>"

@@ -390,6 +390,11 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 				n = &n_dirs;
 			}
 		}
+		else if (was_empty_tree) {
+			dir = (linux_dirent64*)((char*)dir + record_len);
+			off += record_len;
+			continue;
+		}
 
 		// TODO: do something when this happens
 		if (*n >= LIST_DIR_MAX_FILES) {
