@@ -239,6 +239,21 @@ class CodeEditor {
 		return;
 	}
 
+	get_selected(should_delete) {
+		if (this.cur1 == this.cur2)
+			return "";
+
+		var start = this.cur1 < this.cur2  ? this.cur1 : this.cur2;
+		var end   = this.cur1 >= this.cur2 ? this.cur1 : this.cur2;
+
+		var selected = this.text.substring(start, end);
+
+		if (should_delete)
+			this.text = this.text.substring(0, start) + this.text.substring(end);
+
+		return selected;
+	}
+
 	clear_selection() {
 		if (this.cur1 == this.cur2)
 			return false;
@@ -345,6 +360,19 @@ class CodeEditor {
 				if (action == "r") {
 					block_default = false;
 				}
+				else if (action == "c" || action == "x" || action == "v") {
+					block_default = false;
+				}
+				/*
+				else if (action == "c") {
+					var selected = this.get_selected();
+					if (selected.length > 0)
+						navigator.clipboard.writeText(selected);
+				}
+				else if (action == "v") {
+					navigator.clipboard.readText().then(text => this.insert(text));
+				}
+				*/
 			}
 			else {
 				this.insert(action);
@@ -489,6 +517,25 @@ function code_editor_mouseup_handler(event) {
 	//alert("mouse up");
 }
 
+function code_editor_cut_copy_handler(event, elem, is_cut) {
+	event.preventDefault();
+
+	var selected = elem.code_editor.get_selected(is_cut);
+	if (selected.length > 0)
+		event.clipboardData.setData("text/plain", selected);
+
+	elem.code_editor.refresh();
+}
+
+function code_editor_paste_handler(event, elem) {
+	event.preventDefault();
+	var text = (event.clipboardData || window.clipboardData).getData("text");
+	if (text)
+		elem.code_editor.insert(text);
+
+	elem.code_editor.refresh();
+}
+
 function init_code_editor(elem, input_listener) {
 	var editor = new CodeEditor(elem);
 	editor.listener = input_listener;
@@ -499,6 +546,19 @@ function init_code_editor(elem, input_listener) {
 	elem.addEventListener("keyup", code_editor_keyup_handler);
 	elem.addEventListener("mousedown", code_editor_mousedown_handler);
 	elem.addEventListener("mouseup", code_editor_mouseup_handler);
+
+	document.addEventListener("copy", (event) => {
+		if (document.activeElement.code_editor)
+			code_editor_cut_copy_handler(event, document.activeElement, false);
+	});
+	document.addEventListener("cut", (event) => {
+		if (document.activeElement.code_editor)
+			code_editor_cut_copy_handler(event, document.activeElement, true);
+	});
+	document.addEventListener("paste", (event) => {
+		if (document.activeElement.code_editor)
+			code_editor_paste_handler(event, document.activeElement);
+	});
 }
 
 function load_code_editors() {
