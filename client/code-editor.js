@@ -18,6 +18,7 @@ class CodeEditor {
 		this.hl   = "#48f";
 
 		this.elem = element;
+		this.size_ref_elem = element;
 		this.canvas = element.getContext("2d");
 
 		var px_height = 12;
@@ -26,6 +27,7 @@ class CodeEditor {
 
 		this.canvas.fillStyle = this.fore;
 		this.canvas.font = this.font_string;
+		this.canvas.imageSmoothingEnabled = false
 
 		this.resize_canvas();
 
@@ -36,12 +38,15 @@ class CodeEditor {
 
 	resize_canvas() {
 		var scale = window.devicePixelRatio || 1;
-		var rect = this.elem.getBoundingClientRect();
-		this.elem.width = Math.floor(rect.width * scale);
-		this.elem.height = Math.floor(rect.height * scale);
+		var styles = getComputedStyle(this.size_ref_elem);
+		var w = parseFloat(styles.getPropertyValue("width"));
+		var h = parseFloat(styles.getPropertyValue("height"));
+
+		this.elem.width = Math.floor(w * scale);
+		this.elem.height = Math.floor(h * scale);
 		this.canvas.scale(scale, scale);
-		this.elem.style.width = "" + Math.floor(rect.width) + "px";
-		this.elem.style.height = "" + Math.floor(rect.height) + "px";
+		this.elem.style.width = "" + Math.floor(w) + "px";
+		this.elem.style.height = "" + Math.floor(h) + "px";
 		this.canvas.font = this.font_string;
 	}
 
@@ -53,9 +58,13 @@ class CodeEditor {
 
 		this.blink_timer = setTimeout(function(editor){editor.blink();}, 1000, this);
 
-		this.canvas.fillStyle = this.blink_state ? this.fore : this.back;
-		this.canvas.fillRect(this.cursor_col * this.char_w, this.cursor_row * this.char_h, 2, this.char_h);
+		var x = Math.floor(this.cursor_col * this.char_w + 0.5);
+		var y = Math.floor(this.cursor_row * this.char_h + 0.5);
+		var w = 1;
+		var h = Math.floor(this.char_h + 0.5);
 
+		this.canvas.fillStyle = this.blink_state ? this.fore : this.back;
+		this.canvas.fillRect(x, y, w, h);
 		this.blink_state = !this.blink_state;
 	}
 
@@ -554,9 +563,8 @@ function code_editor_paste_handler(event, elem) {
 function init_code_editor(elem, input_listener) {
 	var editor = new CodeEditor(elem);
 	editor.listener = input_listener;
-	editor.blink();
-
 	elem.code_editor = editor;
+
 	elem.addEventListener("keydown", code_editor_keydown_handler);
 	elem.addEventListener("keyup", code_editor_keyup_handler);
 	elem.addEventListener("mousedown", code_editor_mousedown_handler);

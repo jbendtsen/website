@@ -442,6 +442,9 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 		"article h3 { font-size: 120%; }\n"
 	);
 	fs.add_file_to_html(html, "client/md-editor.css");
+	html->add(
+		"canvas { image-rendering: crisp-edges; }\n"
+	);
 
 	html->add("</style><script>");
 	fs.add_file_to_html(html, "client/code-editor.js");
@@ -449,21 +452,30 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 	html->add(
 		"</script></head>"
-		"<body class=\"full\" onload=\"load_code_editors()\">" // onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\"
+		"<body class=\"full\" onload=\"load_code_editors(); setup_mdedit_editor();\""
+			"onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\">"
 		"<div class=\"full flex-column\">"
 	);
 
 	add_banner(fs, html, NAV_IDX_NULL);
 
-	html->add("<div id=\"mdedit-main\">"
-		"<div id=\"mdedit-left\"><p>Editor</p><div class=\"mdedit-container code-nowrap\">"
-			"<canvas id=\"mdedit-editor\" class=\"code-editor\" data-listener=\"mdedit_listener\" tabindex=\"1\"></canvas>"
-		"</div></div>"
-		"<div id=\"mdedit-separator\" ></div>" // onmousedown=\"start_dragging()\"
-		"<div id=\"mdedit-right\"><p>Preview</p><div class=\"mdedit-container\">"
-			"<article id=\"mdedit-preview\"></article>"
-		"</div></div>"
-		"</div>");
+	html->add(
+		"<div id=\"mdedit-main\">"
+			"<div id=\"mdedit-left\">"
+				"<p>Editor</p>"
+				"<div id=\"mdedit-editor-container\" class=\"mdedit-container\">"
+					"<canvas id=\"mdedit-editor\" class=\"code-editor\" data-listener=\"mdedit_listener\" tabindex=\"1\"></canvas>"
+				"</div>"
+			"</div>"
+			"<div id=\"mdedit-separator\" onmousedown=\"start_dragging()\"></div>"
+			"<div id=\"mdedit-right\">"
+				"<p>Preview</p>"
+				"<div id=\"mdedit-preview-container\" class=\"mdedit-container\">"
+					"<article id=\"mdedit-preview\"></article>"
+				"</div>"
+			"</div>"
+		"</div>"
+	);
 
 	html->add("</div></body></html>");
 }

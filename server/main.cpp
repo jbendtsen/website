@@ -162,6 +162,7 @@ static void send_response(Response *res, int fd)
 	}
 }
 
+// FIXME: Occasionally this while loop churns 100% CPU. Not sure why.
 static void *handle_socket(void *data)
 {
 	Thread *thread = (Thread*)data;

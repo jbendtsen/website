@@ -21,17 +21,21 @@
 	bottom: 0;
 	left: 0;
 	right: 0;
-	padding: 0.5em;
-	border: 1px solid #444;
-	overflow-x: auto;
-	overflow-y: auto;
 }
-#mdedit-editor {
+#mdedit-editor-container {
+	/*
 	font-family: monospace;
 	white-space: nowrap;
 	width: fit-content;
 	min-width: calc(100% - 17px);
 	min-height: calc(100% - 17px);
+	*/
+	width: calc(100% - 2px);
+	height: calc(100% - 46px);
+	border: 1px solid #444;
+	overflow: hidden;
+}
+#mdedit-editor {
 	outline: 0;
 }
 #mdedit-separator {
@@ -40,6 +44,12 @@
 	border-left: 6px solid #fff;
 	border-right: 6px solid #fff;
 	background-color: #888;
+}
+#mdedit-preview-container {
+	padding: 0.5em;
+	border: 1px solid #444;
+	overflow-x: auto;
+	overflow-y: auto;
 }
 #mdedit-preview {
 	min-height: 200px;
