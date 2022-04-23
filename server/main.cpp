@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 
 #include "website.h"
 
@@ -139,6 +140,9 @@ static void receive_request(int fd, Request& request)
 			}
 			break;
 		}
+		else if (res == 0) {
+			break;
+		}
 	}
 
 	if (request.header_size <= 0)
@@ -147,13 +151,21 @@ static void receive_request(int fd, Request& request)
 
 static void send_response(Response *res, int fd)
 {
+	struct pollfd ps = {0};
+	ps.fd = fd;
+	ps.events = POLLOUT;
+	poll(&ps, 1, 0);
+
+	if ((ps.revents & POLLOUT) == 0)
+		return;
+
 	if (res->format == RESPONSE_FILE) {
 		write_http_header(fd, res->status, res->mime, res->file_size);
-		write(fd, res->file_buffer, res->file_size);
+		send(fd, res->file_buffer, res->file_size, 0);
 	}
 	else if (res->format == RESPONSE_HTML) {
 		write_http_header(fd, res->status, res->mime, res->html.len);
-		write(fd, res->html.data(), res->html.len);
+		send(fd, res->html.data(), res->html.len, 0);
 	}
 	else if (res->format == RESPONSE_MULTI) {
 		// It's assumed that the first message in this list contains the HTTP headers
@@ -162,7 +174,6 @@ static void send_response(Response *res, int fd)
 	}
 }
 
-// FIXME: Occasionally this while loop churns 100% CPU. Not sure why.
 static void *handle_socket(void *data)
 {
 	Thread *thread = (Thread*)data;
@@ -354,6 +365,9 @@ static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
 
 	Thread *t = &threads[tidx];
 	t->flags |= THREAD_FLAG_BUSY;
+
+	int yes = 1;
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int));
 
 	if ((t->flags & THREAD_FLAG_PIPES) == 0) {
 		t->flags |= THREAD_FLAG_PIPES;

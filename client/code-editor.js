@@ -86,6 +86,14 @@ class CodeEditor {
 		this.target_vis_cols = vis_cols;
 	}
 
+	move_prev_word(selecting) {
+		
+	}
+
+	move_next_word(selecting) {
+		
+	}
+
 	move_distance(distance, selecting) {
 		var idx = this.cur2 + distance;
 		if (idx < 0 || idx > this.text.length)
@@ -417,7 +425,7 @@ class CodeEditor {
 			}
 			else if (action == "arrowleft") {
 				if (ctrl) {
-					
+					this.move_prev_word(shift);
 				}
 				else {
 					this.move_distance(-1, shift);
@@ -425,7 +433,7 @@ class CodeEditor {
 			}
 			else if (action == "arrowright") {
 				if (ctrl) {
-					
+					this.move_next_word(shift);
 				}
 				else {
 					this.move_distance(1, shift);
