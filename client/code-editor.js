@@ -21,14 +21,28 @@ class CodeEditor {
 		this.canvas = element.getContext("2d");
 
 		var px_height = 12;
+		this.font_string = "" + px_height + "px monospace";
 		this.char_base = px_height / 5;
 
 		this.canvas.fillStyle = this.fore;
-		this.canvas.font = "" + px_height + "px monospace";
+		this.canvas.font = this.font_string;
+
+		this.resize_canvas();
 
 		var metrics = this.canvas.measureText("W");
 		this.char_w = metrics.width;
 		this.char_h = px_height + 2 * this.char_base;
+	}
+
+	resize_canvas() {
+		var scale = window.devicePixelRatio || 1;
+		var rect = this.elem.getBoundingClientRect();
+		this.elem.width = Math.floor(rect.width * scale);
+		this.elem.height = Math.floor(rect.height * scale);
+		this.canvas.scale(scale, scale);
+		this.elem.style.width = "" + Math.floor(rect.width) + "px";
+		this.elem.style.height = "" + Math.floor(rect.height) + "px";
+		this.canvas.font = this.font_string;
 	}
 
 	blink() {
@@ -363,16 +377,6 @@ class CodeEditor {
 				else if (action == "c" || action == "x" || action == "v") {
 					block_default = false;
 				}
-				/*
-				else if (action == "c") {
-					var selected = this.get_selected();
-					if (selected.length > 0)
-						navigator.clipboard.writeText(selected);
-				}
-				else if (action == "v") {
-					navigator.clipboard.readText().then(text => this.insert(text));
-				}
-				*/
 			}
 			else {
 				this.insert(action);
@@ -432,6 +436,8 @@ class CodeEditor {
 	}
 
 	refresh() {
+		this.resize_canvas();
+
 		this.canvas.fillStyle = this.back;
 		this.canvas.fillRect(0, 0, this.elem.width, this.elem.height);
 		this.canvas.fillStyle = this.fore;
@@ -502,6 +508,9 @@ function code_editor_keydown_handler(event) {
 		event.preventDefault();
 
 	editor.refresh();
+
+	if (editor.listener)
+		editor.listener(editor.text);
 }
 
 function code_editor_keyup_handler(event) {
@@ -510,7 +519,7 @@ function code_editor_keyup_handler(event) {
 
 function code_editor_mousedown_handler(event) {
 	//alert("mouse down");
-	event.target.tabIndex = 0;
+	event.target.tabIndex = 1;
 }
 
 function code_editor_mouseup_handler(event) {
@@ -525,6 +534,9 @@ function code_editor_cut_copy_handler(event, elem, is_cut) {
 		event.clipboardData.setData("text/plain", selected);
 
 	elem.code_editor.refresh();
+
+	if (elem.code_editor.listener)
+		elem.code_editor.listener(elem.code_editor.text);
 }
 
 function code_editor_paste_handler(event, elem) {
@@ -534,6 +546,9 @@ function code_editor_paste_handler(event, elem) {
 		elem.code_editor.insert(text);
 
 	elem.code_editor.refresh();
+
+	if (elem.code_editor.listener)
+		elem.code_editor.listener(elem.code_editor.text);
 }
 
 function init_code_editor(elem, input_listener) {
@@ -547,6 +562,20 @@ function init_code_editor(elem, input_listener) {
 	elem.addEventListener("mousedown", code_editor_mousedown_handler);
 	elem.addEventListener("mouseup", code_editor_mouseup_handler);
 
+	elem.addEventListener("blur", (event) => { console.log("BLUR!"); });
+}
+
+function load_code_editors() {
+	var editor_elems = document.getElementsByClassName("code-editor");
+	if (editor_elems.length == 0)
+		return;
+
+	for (var e of editor_elems) {
+		init_code_editor(e, window[e.dataset.listener]);
+	}
+
+	editor_elems[0].focus();
+
 	document.addEventListener("copy", (event) => {
 		if (document.activeElement.code_editor)
 			code_editor_cut_copy_handler(event, document.activeElement, false);
@@ -559,11 +588,4 @@ function init_code_editor(elem, input_listener) {
 		if (document.activeElement.code_editor)
 			code_editor_paste_handler(event, document.activeElement);
 	});
-}
-
-function load_code_editors() {
-	var editor_elems = document.getElementsByClassName("code-editor");
-	for (var e of editor_elems) {
-		init_code_editor(e, e.dataset.listener);
-	}
 }

@@ -449,7 +449,7 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 	html->add(
 		"</script></head>"
-		"<body class=\"full\" onload=\"load_code_editors()\" onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\">"
+		"<body class=\"full\" onload=\"load_code_editors()\">" // onmousemove=\"global_mouse_handler(event)\" onmouseup=\"stop_dragging()\"
 		"<div class=\"full flex-column\">"
 	);
 
@@ -457,9 +457,9 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 	html->add("<div id=\"mdedit-main\">"
 		"<div id=\"mdedit-left\"><p>Editor</p><div class=\"mdedit-container code-nowrap\">"
-			"<canvas id=\"mdedit-editor\" class=\"code-editor\" data-listener=\"mdedit_listener\" tabindex=\"0\"></canvas>"
+			"<canvas id=\"mdedit-editor\" class=\"code-editor\" data-listener=\"mdedit_listener\" tabindex=\"1\"></canvas>"
 		"</div></div>"
-		"<div id=\"mdedit-separator\" onmousedown=\"start_dragging();\"></div>"
+		"<div id=\"mdedit-separator\" ></div>" // onmousedown=\"start_dragging()\"
 		"<div id=\"mdedit-right\"><p>Preview</p><div class=\"mdedit-container\">"
 			"<article id=\"mdedit-preview\"></article>"
 		"</div></div>"

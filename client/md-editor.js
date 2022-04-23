@@ -18,6 +18,7 @@ function set_markdown_preview(html) {
 
 function mdedit_listener(text) {
     //var contents = document.getElementById("mdedit-editor").innerHTML;
+    /*
     text = text.replaceAll("<div>", "")
     	.replaceAll("</div>", "\n")
     	.replaceAll("<br>", "\n")
@@ -25,6 +26,7 @@ function mdedit_listener(text) {
     	.replaceAll("&amp;", "&")
     	.replaceAll("&lt;", "<")
     	.replaceAll("&gt;", ">");
+    */
     get_markdown_render(text).then(set_markdown_preview);
 }
 
