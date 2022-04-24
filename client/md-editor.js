@@ -31,9 +31,11 @@ function mdedit_listener(text) {
 }
 
 function setup_mdedit_editor() {
+	/*
 	var editor = document.getElementById('mdedit-editor').code_editor;
 	editor.size_ref_elem = document.getElementById('mdedit-editor-container');
 	editor.refresh();
+	*/
 }
 
 var dragging = false;

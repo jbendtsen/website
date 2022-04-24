@@ -17,8 +17,12 @@ class CodeEditor {
 		this.back = "#eee";
 		this.hl   = "#48f";
 
-		this.elem = element;
-		this.size_ref_elem = element;
+		this.canv_pad_x = 400;
+		this.canv_pad_y = 400;
+
+		this.canv_elem = element;
+		this.plane_elem = element.parentElement;
+		this.outer_elem = this.plane_elem.parentElement;
 		this.canvas = element.getContext("2d");
 
 		var px_height = 12;
@@ -38,15 +42,15 @@ class CodeEditor {
 
 	resize_canvas() {
 		var scale = window.devicePixelRatio || 1;
-		var styles = getComputedStyle(this.size_ref_elem);
-		var w = parseFloat(styles.getPropertyValue("width"));
-		var h = parseFloat(styles.getPropertyValue("height"));
+		var styles = getComputedStyle(this.outer_elem);
+		var w = parseFloat(styles.getPropertyValue("width")) + this.canv_pad_x;
+		var h = parseFloat(styles.getPropertyValue("height")) + this.canv_pad_y;
 
-		this.elem.width = Math.floor(w * scale);
-		this.elem.height = Math.floor(h * scale);
+		this.canv_elem.width = Math.floor(w * scale);
+		this.canv_elem.height = Math.floor(h * scale);
 		this.canvas.scale(scale, scale);
-		this.elem.style.width = "" + Math.floor(w) + "px";
-		this.elem.style.height = "" + Math.floor(h) + "px";
+		this.canv_elem.style.width = "" + Math.floor(w) + "px";
+		this.canv_elem.style.height = "" + Math.floor(h) + "px";
 		this.canvas.font = this.font_string;
 	}
 
@@ -391,6 +395,10 @@ class CodeEditor {
 				if (action == "r") {
 					block_default = false;
 				}
+				else if (action == "a") {
+					this.cur1 = 0;
+					this.cur2 = this.text.length;
+				}
 				else if (action == "c" || action == "x" || action == "v") {
 					block_default = false;
 				}
@@ -456,7 +464,7 @@ class CodeEditor {
 		this.resize_canvas();
 
 		this.canvas.fillStyle = this.back;
-		this.canvas.fillRect(0, 0, this.elem.width, this.elem.height);
+		this.canvas.fillRect(0, 0, this.canv_elem.width, this.canv_elem.height);
 		this.canvas.fillStyle = this.fore;
 
 		var start_sel = this.cur1 <  this.cur2 ? this.cur1 : this.cur2;
@@ -587,10 +595,20 @@ function load_code_editors() {
 		return;
 
 	for (var e of editor_elems) {
-		init_code_editor(e, window[e.dataset.listener]);
+		var plane_elem = document.createElement("div");
+		plane_elem.style.minWidth = "100%";
+		plane_elem.style.minHeight = "100%";
+
+		var canv_elem = document.createElement("canvas");
+
+		plane_elem.appendChild(canv_elem);
+		e.appendChild(plane_elem);
+
+		init_code_editor(canv_elem, window[e.dataset.listener]);
+		canv_elem.code_editor.refresh();
 	}
 
-	editor_elems[0].focus();
+	//editor_elems[0].focus();
 
 	document.addEventListener("copy", (event) => {
 		if (document.activeElement.code_editor)
