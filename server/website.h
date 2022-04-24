@@ -353,6 +353,8 @@ struct Filesystem {
 	bool add_file_to_html(String *html, const char *path);
 };
 
+bool strings_match(const char *a, const char *b, int len);
+int find_character(const char *str, char c, int len);
 HTML_Type lookup_ext(const char *ext);
 void get_datetime(char *buf);
 void write_http_header(int request_fd, const char *status, const char *content_type, int size);
@@ -368,5 +370,5 @@ void serve_home_page(Filesystem& fs, Response& response);
 void serve_blog_overview(Filesystem& fs, Response& response);
 void serve_specific_blog(Filesystem& fs, Response& response, char *name, int len);
 void serve_projects_overview(Filesystem& fs, Response& response);
-void serve_specific_project(Filesystem& fs, Response& response, char *name, int len);
+void serve_specific_project(Filesystem& fs, Response& response, char *project_type, int slash_pos, int name_len);
 

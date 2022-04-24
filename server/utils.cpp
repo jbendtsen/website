@@ -21,6 +21,21 @@ bool strings_match(const char *a, const char *b, int len)
 	return true;
 }
 
+int find_character(const char *str, char c, int len) {
+	if (len < 0)
+		len = strlen(str);
+
+	int idx = -1;
+	for (int i = 0; i < len && str[i]; i++) {
+		if (str[i] == c) {
+			idx = i;
+			break;
+		}
+	}
+
+	return idx;
+}
+
 HTML_Type lookup_ext(const char *ext)
 {
 	if (!ext)

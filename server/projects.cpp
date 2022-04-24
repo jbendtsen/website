@@ -121,7 +121,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 	html->add("</div></body></html>");
 }
 
-static void add_directory_html(String *html, Filesystem& fs, int didx, char *path_buf, int path_len)
+static void add_directory_html(String *html, Filesystem& fs, int didx, char *path_buf, int path_len, bool raw_url)
 {
 	if (didx < 0)
 		return;
@@ -141,7 +141,7 @@ static void add_directory_html(String *html, Filesystem& fs, int didx, char *pat
 		memcpy(&path_buf[path_len], name, name_len);
 		path_buf[path_len + name_len] = '/';
 
-		add_directory_html(html, fs, d, path_buf, path_len + name_len + 1);
+		add_directory_html(html, fs, d, path_buf, path_len + name_len + 1, raw_url);
 
 		html->add("</details>");
 
@@ -154,7 +154,14 @@ static void add_directory_html(String *html, Filesystem& fs, int didx, char *pat
 		int name_len = strlen(name);
 
 		html->add("<li class=\"proj-tree-item\"><a href=\"");
-		html->add_and_escape(path_buf, path_len);
+
+		int pos = 9;
+		html->add_and_escape(path_buf, pos);
+		if (raw_url)
+			html->add("-raw");
+		if (path_len > pos)
+			html->add_and_escape(path_buf + pos, path_len - pos);
+
 		html->add_and_escape(name);
 		html->add("\">");
 		html->add_and_escape(name);
@@ -166,11 +173,15 @@ static void add_directory_html(String *html, Filesystem& fs, int didx, char *pat
 	html->add("</ul>");
 }
 
-void serve_specific_project(Filesystem& fs, Response& response, char *name, int name_len)
+void serve_specific_project(Filesystem& fs, Response& response, char *project_type, int slash_pos, int name_len)
 {
 	char dir_path[1024];
 	String path(dir_path, 1024);
 	path.add("content/projects/");
+
+	char *name = &project_type[slash_pos + 1];
+
+	bool show_raw_file = slash_pos == 12 && project_type[8] == '-' && project_type[9] == 'r' && project_type[10] == 'a' && project_type[11] == 'w';
 
 	if (name_len > 4) {
 		char *e = &name[name_len-4];
@@ -229,7 +240,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 	html->add("<div id=\"proj-tree\">");
 
 	const int proj_root = 7; // skips past "content" (length 7), starts at a '/'
-	add_directory_html(html, fs, proj_dir, path.data() + proj_root, 11+proj_len);
+	add_directory_html(html, fs, proj_dir, path.data() + proj_root, 11+proj_len, show_raw_file);
 
 	html->add("</div><hr />");
 	html->add("<a id=\"proj-download\" href=\"/projects/");
@@ -248,12 +259,8 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 			html->add("</h1></div>");
 		}
 		else {
-			html->add("<div id=\"proj-header\" class=\"hdr-margin-y\"><h3>");
-			int margin_type_off = html->len - 7;
-			html->add_and_escape(&name[path_start], name_len - path_start);
-			html->add("</h3></div><div id=\"proj-content\">");
+			HTML_Type file_type = { NULL };
 
-			bool is_code = true;
 			if ((fs.files[fidx].flags & FILE_FLAG_ASCII) == 0) {
 				char *fname = fs.name_pool.at(fs.files[fidx].name_idx);
 				int len = strlen(fname);
@@ -261,25 +268,47 @@ void serve_specific_project(Filesystem& fs, Response& response, char *name, int 
 				while (p > fname && *p != '.')
 					p--;
 
-				HTML_Type type = lookup_ext(p);
-				if (type.tag) {
-					is_code = false;
-					html->data()[margin_type_off] = 'n'; // change header class to one that doesn't have a margin
-
-					html->add("<");
-					html->add(type.tag);
-					html->add(" src=\"/");
-					html->add_and_escape(path.data());
-					html->add("\"></");
-					html->add(type.tag);
-					html->add(">");
-				}
+				file_type = lookup_ext(p);
 			}
 
-			if (is_code)
-				render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
+			html->add("<div id=\"proj-header\"><div id=\"file-hdr-margin\">");
 
-			html->add("</div>");
+			if (file_type.tag) {
+				html->add(show_raw_file ? "<a href=\"/projects/" : "<a href=\"/projects-raw/");
+				html->add_and_escape(name, name_len);
+				html->add("\"><div id=\"file-hdr-type-select\">");
+				html->add(show_raw_file ? "Blob" : "Raw");
+				html->add("</div></a>");
+			}
+
+			html->add("</div><h3>");
+			html->add_and_escape(&name[path_start], name_len - path_start);
+			html->add("</h3></div>");
+
+			if (!show_raw_file && file_type.tag) {
+				const char *blob_type = "outer";
+				bool use_inner = !strings_match(file_type.tag, "iframe", 6);
+				if (use_inner) {
+					html->add("<div id=\"proj-blob-outer\">");
+					blob_type = file_type.tag;
+				}
+				html->add("<");
+				html->add(file_type.tag);
+				html->add(" id=\"proj-blob-");
+				html->add(blob_type);
+				html->add("\" src=\"/");
+				html->add_and_escape(path.data());
+				html->add("\"></");
+				html->add(file_type.tag);
+				html->add(">");
+				if (use_inner)
+					html->add("</div>");
+			}
+			else {
+				html->add("<div id=\"proj-content\">");
+				render_code_article(html, (const char*)fs.files[fidx].buffer, fs.files[fidx].size);
+				html->add("</div>");
+			}
 		}
 	}
 	else {

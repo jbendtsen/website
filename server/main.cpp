@@ -214,18 +214,22 @@ void serve_page(Filesystem& fs, Request& request, Response& response, char *name
 {
 	if (!name || !len) {
 		serve_home_page(fs, response);
+		return;
 	}
-	else if (!memcmp(name, "blog", 4)) {
-		if (len > 5 && name[4] == '/') {
-			serve_specific_blog(fs, response, name + 5, len - 5);
+
+	int slash_pos = find_character(name, '/', len);
+	if (!memcmp(name, "blog", 4)) {
+		if (slash_pos > 0 && slash_pos < len-1) {
+			int pos = slash_pos + 1;
+			serve_specific_blog(fs, response, name + pos, len - pos);
 		}
-		else if (len == 4) {
+		else {
 			serve_blog_overview(fs, response);
 		}
 	}
 	else if (!memcmp(name, "projects", 8)) {
-		if (len > 9 && name[8] == '/') {
-			serve_specific_project(fs, response, name + 9, len - 9);
+		if (slash_pos > 0 && slash_pos < len-1) {
+			serve_specific_project(fs, response, name, slash_pos, len - (slash_pos+1));
 		}
 		else if (len == 8) {
 			serve_projects_overview(fs, response);
@@ -496,6 +500,9 @@ static void http_loop(File_Database *global, Filesystem *fs)
 
 int main()
 {
+	// dangerous
+	signal(SIGPIPE, SIG_IGN);
+
 	sigset_t sig_mask = {0};
 
 	sigemptyset(&sig_mask);
