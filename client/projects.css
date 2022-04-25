@@ -126,6 +126,11 @@
 	margin-top: 0.2em;
 	margin-left: 5%;
 	margin-bottom: 0.7em;
+	background-color: #48f;
+	color: #f8f8f8;
+}
+#proj-download:hover {
+	background-color: #26f;
 }
 #proj-main {
 	display: flex;
@@ -160,9 +165,9 @@
 	text-decoration: underline #666;
 }
 #file-hdr-type-select {
+	font-size: 90%;
 	padding: 0.3em 0.4em 0.3em 0.4em;
-	font-family: sans-serif;
-	color: #666;
+	color: #24f;
 }
 #proj-content {
 	flex-grow: 0;

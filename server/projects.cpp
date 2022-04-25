@@ -274,10 +274,11 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 			html->add("<div id=\"proj-header\"><div id=\"file-hdr-margin\">");
 
 			if (file_type.tag) {
-				html->add(show_raw_file ? "<a href=\"/projects/" : "<a href=\"/projects-raw/");
+				html->add("<a id=\"file-hdr-type-select\" href=\"");
+				html->add(show_raw_file ? "/projects/" : "/projects-raw/");
 				html->add_and_escape(name, name_len);
-				html->add("\"><div id=\"file-hdr-type-select\">");
-				html->add(show_raw_file ? "Blob" : "Raw");
+				html->add("\"><div class=\"button\">");
+				html->add(show_raw_file ? "blob" : "raw");
 				html->add("</div></a>");
 			}
 
