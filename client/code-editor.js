@@ -459,6 +459,34 @@ class CodeEditor {
 		}
 	}
 
+	find_offset_from_xy(x, y) {
+		var target_col = Math.floor((x + this.view_x) / this.char_w + 0.25);
+		var target_row = Math.floor((y + this.view_y) / this.char_h);
+
+		var col = 0;
+		var row = 0;
+		var len = this.text.length;
+
+		for (var i = 0; i < len; i++) {
+			var c = this.text.charCodeAt(i);
+			if (c == 10) {
+				col = 0;
+				row++;
+			}
+			else if (c == 9) {
+				col += this.tab_w - (col % this.tab_w);
+			}
+			else {
+				col++;
+			}
+
+			if (row > target_row || (row == target_row && col > target_col))
+				return i;
+		}
+
+		return len;
+	}
+
 	handle_keypress(action, ctrl, shift) {
 		var res = CE_FLAG_PREVENT_DEFAULT | CE_FLAG_REFRESH;
 
@@ -656,8 +684,27 @@ function code_editor_keyup_handler(event) {
 }
 
 function code_editor_mousedown_handler(event) {
-	//alert("mouse down");
 	event.target.tabIndex = 1;
+
+	var editor = event.target.code_editor;
+	var idx = editor.find_offset_from_xy(event.offsetX, event.offsetY);
+
+	editor.cur1 = idx;
+	editor.cur2 = idx;
+	editor.refresh();
+}
+
+function code_editor_mousemove_handler(event) {
+	if ((event.buttons & 1) == 0)
+		return;
+
+	var editor = event.target.code_editor;
+	var idx = editor.find_offset_from_xy(event.offsetX, event.offsetY);
+
+	var should_refresh = editor.cur2 != idx;
+	editor.cur2 = idx;
+	if (should_refresh)
+		editor.refresh();
 }
 
 function code_editor_mouseup_handler(event) {
@@ -703,6 +750,7 @@ function init_code_editor(canv_elem, input_listener) {
 	canv_elem.addEventListener("keydown", code_editor_keydown_handler);
 	canv_elem.addEventListener("keyup", code_editor_keyup_handler);
 	canv_elem.addEventListener("mousedown", code_editor_mousedown_handler);
+	canv_elem.addEventListener("mousemove", code_editor_mousemove_handler);
 	canv_elem.addEventListener("mouseup", code_editor_mouseup_handler);
 
 	canv_elem.parentElement.parentElement.addEventListener("scroll", code_editor_scroll_handler);
