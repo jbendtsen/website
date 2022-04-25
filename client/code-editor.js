@@ -5,13 +5,17 @@ const CE_FLAG_REFRESH = 2;
 const CE_FLAG_LISTENER = 4;
 
 class CodeEditor {
-	constructor(element) {
+	constructor(canv) {
 		this.text = "";
 		this.cur1 = 0;
 		this.cur2 = 0;
 		this.cursor_col = 0;
 		this.cursor_row = 0;
 		this.target_vis_col = -1;
+		this.view_x = 0;
+		this.view_y = 0;
+		this.view_w = 0;
+		this.view_h = 0;
 		this.prev_action = "";
 		this.blink_timer = null;
 		this.blink_state = true;
@@ -24,10 +28,10 @@ class CodeEditor {
 		this.canv_pad_x = 400;
 		this.canv_pad_y = 400;
 
-		this.canv_elem = element;
-		this.plane_elem = element.parentElement;
+		this.canv_elem = canv;
+		this.plane_elem = canv.parentElement;
 		this.outer_elem = this.plane_elem.parentElement;
-		this.canvas = element.getContext("2d");
+		this.canvas = canv.getContext("2d");
 
 		var px_height = 12;
 		this.font_string = "" + px_height + "px monospace";
@@ -45,16 +49,22 @@ class CodeEditor {
 	}
 
 	resize_canvas() {
-		var scale = window.devicePixelRatio || 1;
 		var styles = getComputedStyle(this.outer_elem);
-		var w = Math.floor(parseFloat(styles.getPropertyValue("width")) + this.canv_pad_x);
+		var w = Math.floor(parseFloat(styles.getPropertyValue("width"))  + this.canv_pad_x);
 		var h = Math.floor(parseFloat(styles.getPropertyValue("height")) + this.canv_pad_y);
 
-		this.canv_elem.width = Math.floor(w * scale);
-		this.canv_elem.height = Math.floor(h * scale);
+		if (w == this.view_w && h == this.view_h)
+			return;
+
+		this.view_w = w;
+		this.view_h = h;
+
+		var scale = window.devicePixelRatio || 1;
+		this.canv_elem.width  = Math.floor(this.view_w * scale);
+		this.canv_elem.height = Math.floor(this.view_h * scale);
 		this.canvas.scale(scale, scale);
-		this.canv_elem.style.width = "" + w + "px";
-		this.canv_elem.style.height = "" + h + "px";
+		this.canv_elem.style.width  = "" + this.view_w + "px";
+		this.canv_elem.style.height = "" + this.view_h + "px";
 		this.canvas.font = this.font_string;
 	}
 
@@ -66,8 +76,8 @@ class CodeEditor {
 
 		this.blink_timer = setTimeout(function(editor){editor.blink();}, 1000, this);
 
-		var x = Math.floor(this.cursor_col * this.char_w + 0.5);
-		var y = Math.floor(this.cursor_row * this.char_h + 0.5);
+		var x = Math.floor(this.cursor_col * this.char_w - this.view_x + 0.5);
+		var y = Math.floor(this.cursor_row * this.char_h - this.view_y + 0.5);
 		var w = 1;
 		var h = Math.floor(this.char_h + 0.5);
 
@@ -519,6 +529,18 @@ class CodeEditor {
 		return res;
 	}
 
+	consider_scroll(pos_x, pos_y) {
+		var x = Math.floor(pos_x - (pos_x % this.canv_pad_x));
+		var y = Math.floor(pos_y - (pos_y % this.canv_pad_y));
+
+		if (x == this.view_x && y == this.view_y)
+			return;
+
+		this.view_x = x;
+		this.view_y = y;
+		this.refresh();
+	}
+
 	refresh() {
 		this.resize_canvas();
 
@@ -529,6 +551,9 @@ class CodeEditor {
 		var start_sel = this.cur1 <  this.cur2 ? this.cur1 : this.cur2;
 		var end_sel   = this.cur1 >= this.cur2 ? this.cur1 : this.cur2;
 
+		var total_cols = 0;
+		var total_rows = 0;
+
 		var col = 0;
 		var row = 0;
 		var len = this.text.length;
@@ -536,6 +561,8 @@ class CodeEditor {
 		for (var i = 0; i < len; i++) {
 			var code = 0;
 			var test_col = col;
+			var x = col * this.char_w - this.view_x;
+			var y = row * this.char_h - this.view_y;
 
 			for (var j = i; j < len; j++) {
 				if (j == this.cur1) {
@@ -547,17 +574,22 @@ class CodeEditor {
 				if (code < 0x20)
 					break;
 
-				if (j >= start_sel && j < end_sel) {
+				if (j >= start_sel && j < end_sel &&
+					x >= -this.char_w && x <= this.view_w &&
+					y >= -this.char_h && y <= this.view_h
+				) {
 					this.canvas.fillStyle = this.hl;
-					this.canvas.fillRect(test_col * this.char_w, row * this.char_h, this.char_w + 1, this.char_h + 1);
+					this.canvas.fillRect(x, y, this.char_w + 1, this.char_h + 1);
 				}
 
+				x += this.char_w;
 				test_col++;
 			}
 
-			if (j > i) {
+			x = col * this.char_w - this.view_x;
+			if (j > i && x <= this.view_w && y >= -this.char_h && y <= this.view_h) {
 				this.canvas.fillStyle = this.fore;
-				this.canvas.fillText(this.text.substring(i, j), 1 + col * this.char_w, (row+1) * this.char_h - this.char_base);
+				this.canvas.fillText(this.text.substring(i, j), x + 1, y + this.char_h - this.char_base);
 			}
 
 			col = test_col;
@@ -566,6 +598,8 @@ class CodeEditor {
 				col += this.tab_w - (col % this.tab_w);
 			}
 			else if (code == 10) {
+				if (col > total_cols)
+					total_cols = col + 1;
 				col = 0;
 				row++;
 			}
@@ -576,10 +610,20 @@ class CodeEditor {
 			i = j;
 		}
 
+		total_rows = row + 1;
+		if (col > total_cols)
+			total_cols = col + 1;
+
 		if (this.cur1 == this.text.length) {
 			this.cursor_col = col;
 			this.cursor_row = row;
 		}
+
+		this.canv_elem.style.left = "" + this.view_x + "px";
+		this.canv_elem.style.top  = "" + this.view_y + "px";
+
+		this.plane_elem.style.width  = "" + (total_cols * this.char_w) + "px";
+		this.plane_elem.style.height = "" + (total_rows * this.char_h) + "px";
 
 		this.blink_state = true;
 		this.blink();
@@ -635,17 +679,25 @@ function code_editor_paste_handler(event, elem) {
 		elem.code_editor.listener(elem.code_editor.text);
 }
 
-function init_code_editor(elem, input_listener) {
-	var editor = new CodeEditor(elem);
+function code_editor_scroll_handler(event) {
+	var x = event.target.scrollLeft;
+	var y = event.target.scrollTop;
+	event.target.firstChild.firstChild.code_editor.consider_scroll(x, y);
+}
+
+function init_code_editor(canv_elem, input_listener) {
+	var editor = new CodeEditor(canv_elem);
 	editor.listener = input_listener;
-	elem.code_editor = editor;
+	canv_elem.code_editor = editor;
 
-	elem.addEventListener("keydown", code_editor_keydown_handler);
-	elem.addEventListener("keyup", code_editor_keyup_handler);
-	elem.addEventListener("mousedown", code_editor_mousedown_handler);
-	elem.addEventListener("mouseup", code_editor_mouseup_handler);
+	canv_elem.addEventListener("keydown", code_editor_keydown_handler);
+	canv_elem.addEventListener("keyup", code_editor_keyup_handler);
+	canv_elem.addEventListener("mousedown", code_editor_mousedown_handler);
+	canv_elem.addEventListener("mouseup", code_editor_mouseup_handler);
 
-	elem.addEventListener("blur", (event) => { console.log("BLUR!"); });
+	canv_elem.parentElement.parentElement.addEventListener("scroll", code_editor_scroll_handler);
+
+	canv_elem.addEventListener("blur", (event) => { console.log("BLUR!"); });
 }
 
 function load_code_editors() {
@@ -654,11 +706,18 @@ function load_code_editors() {
 		return;
 
 	for (var e of editor_elems) {
+		e.style.overflow = "auto";
+
 		var plane_elem = document.createElement("div");
+		plane_elem.style.position = "relative";
+		plane_elem.style.overflow = "hidden";
 		plane_elem.style.minWidth = "100%";
 		plane_elem.style.minHeight = "100%";
 
 		var canv_elem = document.createElement("canvas");
+		canv_elem.style.position = "absolute";
+		canv_elem.style.top = "0";
+		canv_elem.style.left = "0";
 
 		plane_elem.appendChild(canv_elem);
 		e.appendChild(plane_elem);

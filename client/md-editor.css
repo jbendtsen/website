@@ -27,7 +27,6 @@
 	height: calc(100% - 46px);
 	border: 1px solid #444;
 	/*background-color: #eee;*/
-	overflow: hidden;
 }
 #mdedit-editor {
 	outline: 0;
