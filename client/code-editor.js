@@ -128,14 +128,18 @@ class CodeEditor {
 
 			idx--;
 			var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			var kind = 0;
 			while (idx > 0) {
 				idx--;
-				var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+				kind = this.get_delim_kind(this.text.charCodeAt(idx));
 				if (kind != start_kind) {
 					idx++;
 					break;
 				}
 			}
+
+			if (kind != 0)
+				break;
 		}
 
 		this.cur2 = idx;
@@ -156,13 +160,17 @@ class CodeEditor {
 			}
 
 			var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			var kind = 0;
 			while (idx < len) {
 				idx++;
-				var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+				kind = this.get_delim_kind(this.text.charCodeAt(idx));
 				if (kind != start_kind) {
 					break;
 				}
 			}
+
+			if (kind != 0)
+				break;
 		}
 
 		this.cur2 = idx;
@@ -625,24 +633,43 @@ class CodeEditor {
 			}
 
 			x = col * this.char_w - this.view_x;
-			if (j > i && x <= this.view_w && y >= -this.char_h && y <= this.view_h) {
-				this.canvas.fillStyle = this.fore;
-				this.canvas.fillText(this.text.substring(i, j), x + 1, y + this.char_h - this.char_base);
-			}
-
 			col = test_col;
 
 			if (code == 9) {
-				col += this.tab_w - (col % this.tab_w);
+				var x_hl = test_col * this.char_w - this.view_x;
+				var gap = this.tab_w - (col % this.tab_w);
+				col += gap;
+
+				if (j >= start_sel && j < end_sel &&
+					x_hl >= -this.char_w && x_hl <= this.view_w &&
+					y >= -this.char_h && y <= this.view_h
+				) {
+					this.canvas.fillStyle = this.hl;
+					this.canvas.fillRect(x_hl, y, gap * this.char_w + 1, this.char_h + 1);
+				}
 			}
 			else if (code == 10) {
+				var x_hl = test_col * this.char_w - this.view_x;
 				if (col > total_cols)
 					total_cols = col + 1;
 				col = 0;
 				row++;
+
+				if (j >= start_sel && j < end_sel &&
+					x_hl >= -this.char_w && x_hl <= this.view_w &&
+					y >= -this.char_h && y <= this.view_h
+				) {
+					this.canvas.fillStyle = this.hl;
+					this.canvas.fillRect(x_hl, y, this.char_w + 1, this.char_h + 1);
+				}
 			}
 			else if (j < len-1) {
 				col++;
+			}
+
+			if (j > i && x <= this.view_w && y >= -this.char_h && y <= this.view_h) {
+				this.canvas.fillStyle = this.fore;
+				this.canvas.fillText(this.text.substring(i, j), x + 1, y + this.char_h - this.char_base);
 			}
 
 			i = j;
