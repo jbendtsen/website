@@ -23,13 +23,6 @@
 	right: 0;
 }
 #mdedit-editor {
-	/*
-	font-family: monospace;
-	white-space: nowrap;
-	width: fit-content;
-	min-width: calc(100% - 17px);
-	min-height: calc(100% - 17px);
-	*/
 	width: calc(100% - 2px);
 	height: calc(100% - 46px);
 	border: 1px solid #444;

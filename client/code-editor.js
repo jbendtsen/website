@@ -1,5 +1,9 @@
 "use strict";
 
+const CE_FLAG_PREVENT_DEFAULT = 1;
+const CE_FLAG_REFRESH = 2;
+const CE_FLAG_LISTENER = 4;
+
 class CodeEditor {
 	constructor(element) {
 		this.text = "";
@@ -43,14 +47,14 @@ class CodeEditor {
 	resize_canvas() {
 		var scale = window.devicePixelRatio || 1;
 		var styles = getComputedStyle(this.outer_elem);
-		var w = parseFloat(styles.getPropertyValue("width")) + this.canv_pad_x;
-		var h = parseFloat(styles.getPropertyValue("height")) + this.canv_pad_y;
+		var w = Math.floor(parseFloat(styles.getPropertyValue("width")) + this.canv_pad_x);
+		var h = Math.floor(parseFloat(styles.getPropertyValue("height")) + this.canv_pad_y);
 
 		this.canv_elem.width = Math.floor(w * scale);
 		this.canv_elem.height = Math.floor(h * scale);
 		this.canvas.scale(scale, scale);
-		this.canv_elem.style.width = "" + Math.floor(w) + "px";
-		this.canv_elem.style.height = "" + Math.floor(h) + "px";
+		this.canv_elem.style.width = "" + w + "px";
+		this.canv_elem.style.height = "" + h + "px";
 		this.canvas.font = this.font_string;
 	}
 
@@ -90,12 +94,61 @@ class CodeEditor {
 		this.target_vis_cols = vis_cols;
 	}
 
+	get_delim_kind(c) {
+		if (c == ' ')
+			return 0;
+		else if ((c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || c == 0x5f || (c >= 0x61 && c <= 0x7a))
+			return 1;
+		return 2;
+	}
+
 	move_prev_word(selecting) {
-		
+		var idx = this.cur2;
+		if (idx <= 1) {
+			this.cur2 = 0;
+			if (!selecting)
+				this.cur1 = this.cur2;
+			return;
+		}
+
+		idx--;
+		var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+		while (idx > 0) {
+			idx--;
+			var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			if (kind != start_kind) {
+				idx++;
+				break;
+			}
+		}
+
+		this.cur2 = idx;
+		if (!selecting)
+			this.cur1 = this.cur2;
 	}
 
 	move_next_word(selecting) {
-		
+		var idx = this.cur2;
+		var len = this.text.length;
+		if (idx >= len-1) {
+			this.cur2 = len;
+			if (!selecting)
+				this.cur1 = this.cur2;
+			return;
+		}
+
+		var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+		while (idx < len) {
+			idx++;
+			var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			if (kind != start_kind) {
+				break;
+			}
+		}
+
+		this.cur2 = idx;
+		if (!selecting)
+			this.cur1 = this.cur2;
 	}
 
 	move_distance(distance, selecting) {
@@ -388,23 +441,24 @@ class CodeEditor {
 	}
 
 	handle_keypress(action, ctrl, shift) {
-		var block_default = true;
+		var res = CE_FLAG_PREVENT_DEFAULT | CE_FLAG_REFRESH;
 
 		if (action.length == 1) {
 			if (ctrl) {
 				if (action == "r") {
-					block_default = false;
+					res &= ~CE_FLAG_PREVENT_DEFAULT;
 				}
 				else if (action == "a") {
 					this.cur1 = 0;
 					this.cur2 = this.text.length;
 				}
 				else if (action == "c" || action == "x" || action == "v") {
-					block_default = false;
+					res &= ~CE_FLAG_PREVENT_DEFAULT;
 				}
 			}
 			else {
 				this.insert(action);
+				res |= CE_FLAG_LISTENER;
 			}
 		}
 		else {
@@ -412,18 +466,23 @@ class CodeEditor {
 			console.log(action);
 			if (action == "control" || action == "shift" || action == "capslock") {
 				action = null;
+				res &= ~CE_FLAG_REFRESH;
 			}
 			else if (action == "enter") {
 				this.insert("\n");
+				res |= CE_FLAG_LISTENER;
 			}
 			else if (action == "tab") {
 				this.indent(!shift);
+				res |= CE_FLAG_LISTENER;
 			}
 			else if (action == "backspace") {
 				this.delete(-1);
+				res |= CE_FLAG_LISTENER;
 			}
 			else if (action == "delete") {
 				this.delete(0);
+				res |= CE_FLAG_LISTENER;
 			}
 			else if (action == "home") {
 				this.move_home(shift);
@@ -457,7 +516,7 @@ class CodeEditor {
 		if (action)
 			this.prev_action = action;
 
-		return block_default;
+		return res;
 	}
 
 	refresh() {
@@ -529,12 +588,12 @@ class CodeEditor {
 
 function code_editor_keydown_handler(event) {
 	var editor = event.target.code_editor;
-	if (editor.handle_keypress(event.key, event.ctrlKey, event.shiftKey))
+	var res = editor.handle_keypress(event.key, event.ctrlKey, event.shiftKey);
+	if (res & 1)
 		event.preventDefault();
-
-	editor.refresh();
-
-	if (editor.listener)
+	if (res & 2)
+		editor.refresh();
+	if ((res & 4) && editor.listener)
 		editor.listener(editor.text);
 }
 
@@ -607,8 +666,6 @@ function load_code_editors() {
 		init_code_editor(canv_elem, window[e.dataset.listener]);
 		canv_elem.code_editor.refresh();
 	}
-
-	//editor_elems[0].focus();
 
 	document.addEventListener("copy", (event) => {
 		if (document.activeElement.code_editor)

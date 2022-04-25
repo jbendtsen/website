@@ -17,25 +17,14 @@ function set_markdown_preview(html) {
 }
 
 function mdedit_listener(text) {
-    //var contents = document.getElementById("mdedit-editor").innerHTML;
-    /*
-    text = text.replaceAll("<div>", "")
-    	.replaceAll("</div>", "\n")
-    	.replaceAll("<br>", "\n")
-    	.replaceAll("&nbsp;", " ")
-    	.replaceAll("&amp;", "&")
-    	.replaceAll("&lt;", "<")
-    	.replaceAll("&gt;", ">");
-    */
     get_markdown_render(text).then(set_markdown_preview);
 }
 
 function setup_mdedit_editor() {
-	/*
-	var editor = document.getElementById('mdedit-editor').code_editor;
-	editor.size_ref_elem = document.getElementById('mdedit-editor-container');
-	editor.refresh();
-	*/
+	var outer_elem = document.getElementById('mdedit-editor');
+	var canv_elem = outer_elem.firstChild.firstChild;
+	canv_elem.tabIndex = 1;
+	canv_elem.focus();
 }
 
 var dragging = false;
