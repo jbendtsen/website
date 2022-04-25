@@ -20,17 +20,20 @@ class CodeEditor {
 		this.blink_timer = null;
 		this.blink_state = true;
 
+		this.canv_elem = canv;
+		this.plane_elem = canv.parentElement;
+		this.outer_elem = this.plane_elem.parentElement;
+
+		var outer_style = getComputedStyle(this.outer_elem);
+
 		this.tab_w = 4;
-		this.fore = "#111";
-		this.back = "#eee";
+		this.fore = outer_style.getPropertyValue("color");
+		this.back = outer_style.getPropertyValue("background-color");
 		this.hl   = "#48f";
 
 		this.canv_pad_x = 400;
 		this.canv_pad_y = 400;
 
-		this.canv_elem = canv;
-		this.plane_elem = canv.parentElement;
-		this.outer_elem = this.plane_elem.parentElement;
 		this.canvas = canv.getContext("2d");
 
 		var px_height = 12;
@@ -105,7 +108,7 @@ class CodeEditor {
 	}
 
 	get_delim_kind(c) {
-		if (c == ' ')
+		if (c == 0x20 || c == 9)
 			return 0;
 		else if ((c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5a) || c == 0x5f || (c >= 0x61 && c <= 0x7a))
 			return 1;
@@ -114,21 +117,24 @@ class CodeEditor {
 
 	move_prev_word(selecting) {
 		var idx = this.cur2;
-		if (idx <= 1) {
-			this.cur2 = 0;
-			if (!selecting)
-				this.cur1 = this.cur2;
-			return;
-		}
 
-		idx--;
-		var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
-		while (idx > 0) {
+		for (var i = 0; i < 2; i++) {
+			if (idx <= 1) {
+				this.cur2 = 0;
+				if (!selecting)
+					this.cur1 = this.cur2;
+				return;
+			}
+
 			idx--;
-			var kind = this.get_delim_kind(this.text.charCodeAt(idx));
-			if (kind != start_kind) {
-				idx++;
-				break;
+			var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			while (idx > 0) {
+				idx--;
+				var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+				if (kind != start_kind) {
+					idx++;
+					break;
+				}
 			}
 		}
 
@@ -140,19 +146,22 @@ class CodeEditor {
 	move_next_word(selecting) {
 		var idx = this.cur2;
 		var len = this.text.length;
-		if (idx >= len-1) {
-			this.cur2 = len;
-			if (!selecting)
-				this.cur1 = this.cur2;
-			return;
-		}
 
-		var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
-		while (idx < len) {
-			idx++;
-			var kind = this.get_delim_kind(this.text.charCodeAt(idx));
-			if (kind != start_kind) {
-				break;
+		for (var i = 0; i < 2; i++) {
+			if (idx >= len-1) {
+				this.cur2 = len;
+				if (!selecting)
+					this.cur1 = this.cur2;
+				return;
+			}
+
+			var start_kind = this.get_delim_kind(this.text.charCodeAt(idx));
+			while (idx < len) {
+				idx++;
+				var kind = this.get_delim_kind(this.text.charCodeAt(idx));
+				if (kind != start_kind) {
+					break;
+				}
 			}
 		}
 
@@ -529,7 +538,7 @@ class CodeEditor {
 		return res;
 	}
 
-	consider_scroll(pos_x, pos_y) {
+	maybe_scroll(pos_x, pos_y) {
 		var x = Math.floor(pos_x - (pos_x % this.canv_pad_x));
 		var y = Math.floor(pos_y - (pos_y % this.canv_pad_y));
 
@@ -538,7 +547,8 @@ class CodeEditor {
 
 		this.view_x = x;
 		this.view_y = y;
-		this.refresh();
+
+		requestAnimationFrame(() => {this.refresh();});
 	}
 
 	refresh() {
@@ -682,7 +692,7 @@ function code_editor_paste_handler(event, elem) {
 function code_editor_scroll_handler(event) {
 	var x = event.target.scrollLeft;
 	var y = event.target.scrollTop;
-	event.target.firstChild.firstChild.code_editor.consider_scroll(x, y);
+	event.target.firstChild.firstChild.code_editor.maybe_scroll(x, y);
 }
 
 function init_code_editor(canv_elem, input_listener) {
@@ -718,6 +728,7 @@ function load_code_editors() {
 		canv_elem.style.position = "absolute";
 		canv_elem.style.top = "0";
 		canv_elem.style.left = "0";
+		canv_elem.style.outline = "0";
 
 		plane_elem.appendChild(canv_elem);
 		e.appendChild(plane_elem);

@@ -26,7 +26,8 @@
 	width: calc(100% - 2px);
 	height: calc(100% - 46px);
 	border: 1px solid #444;
-	/*background-color: #eee;*/
+	background-color: #eee;
+	color: #111;
 }
 #mdedit-editor {
 	outline: 0;
