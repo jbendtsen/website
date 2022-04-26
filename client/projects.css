@@ -69,12 +69,6 @@
 }
 #proj-sidebar hr {
 	width: 90%;
-	height: 1px;
-	background-color: #ccc;
-	border-top: 0;
-	border-bottom: 0;
-	border-left: 2px solid #e0e0e0;
-	border-right: 2px solid #e0e0e0;
 }
 #proj-name {
 	padding-left: 5%;
@@ -172,6 +166,10 @@
 #proj-content {
 	flex-grow: 0;
 	overflow: auto;
+}
+.proj-md {
+	margin-left: 1em;
+	margin-right: 1em;
 }
 #proj-blob-outer {
 	width: calc(100% - 2px);

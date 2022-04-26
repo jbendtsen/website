@@ -60,6 +60,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 	int prev_line_len = 0;
 	int prev_nl_pos = 0;
 	int code_type = 0;
+	bool ignore_underscores = false;
 	bool should_not_open_tag = false;
 	bool started_line = false;
 	bool is_strikethrough = false;
@@ -90,9 +91,16 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			else if (code_type == 0 && (c == '-' || c == '+' || c == '*')) {
 				if (i < in_sz-1 && input[i+1] == ' ') {
 					new_list_level = (leading_spaces / 4) + 1;
-					started_line = true;
 					is_list_asterisk = c == '*';
 				}
+				else if (i < in_sz-2 && input[i+1] == c && input[i+2] == c) {
+					html.add("<hr>");
+					should_process = false;
+					while (i < in_sz && input[i] != '\n')
+						i++;
+					c = '\n';
+				}
+				started_line = true;
 			}
 			else if (code_type == 0 && c == '#') {
 				header_level++;
@@ -196,25 +204,33 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 				consq_asterisks++;
 				should_process = false;
 			}
-			else {
+			else if (consq_asterisks) {
 				level_asterisks = level_asterisks ? 0 : consq_asterisks;
 				consq_asterisks = 0;
 			}
 
 			if (c == '_' && !was_esc) {
-				consq_underscores++;
-				should_process = false;
+				if ((prev >= '0' && prev <= '9') || (prev >= 'A' && prev <= 'Z') || (prev >= 'a' && prev <= 'z'))
+					ignore_underscores = !level_underscores;
+
+				if (!ignore_underscores) {
+					consq_underscores++;
+					should_process = false;
+				}
 			}
 			else {
-				level_underscores = level_underscores ? 0 : consq_underscores;
-				consq_underscores = 0;
+				if (consq_underscores) {
+					level_underscores = level_underscores ? 0 : consq_underscores;
+					consq_underscores = 0;
+				}
+				ignore_underscores = false;
 			}
 
 			int diff_em = (level_asterisks + level_underscores) - prev_em;
 			if (diff_em < -2) diff_em = -2;
 			if (diff_em > 2)  diff_em = 2;
 
-			const char *em_tags[] = { "</strong>", "</em>", "", "<em>", "</strong>" };
+			const char *em_tags[] = { "</strong>", "</em>", "", "<em>", "<strong>" };
 			html.add(em_tags[diff_em + 2]);
 
 			if (c == '~' && !was_esc) {
@@ -235,6 +251,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 		if (c == '`' && !was_esc) {
 			// this avoids the case where a code block is formed using leading spaces, since code_level would equal 0
 			consq_backticks++;
+			should_process = false;
 		}
 		else {
 			if (code_type == 1 && consq_backticks == code_level) {
@@ -278,41 +295,66 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 				int j = i+1;
 				int alt = j;
-				bool contains_colon = false;
-				for (; j < in_sz && input[j] != ']'; j++) {
+				bool alt_contains_colon = false;
+				for (; j < in_sz && input[j] != ']' && input[j] != '"' && input[j] != '\''; j++) {
 					if (input[j] == ':')
-						contains_colon = true;
+						alt_contains_colon = true;
 				}
 				int alt_end = j;
 
-				if (path && !contains_colon && input[alt] != '/') {
+				for (; j < in_sz && input[j] != ']'; j++);
+
+				int link = alt;
+				int link_end = alt_end;
+				bool link_contains_colon = alt_contains_colon;
+				if (j < in_sz-1 && input[j+1] == '(') {
+					link_contains_colon = false;
+					link = j + 2;
+
+					for (; j < in_sz && input[j] != ')' && input[j] != '"' && input[j] != '\''; j++) {
+						if (input[j] == ':')
+							link_contains_colon = true;
+					}
+					link_end = j;
+					for (; j < in_sz && input[j] != ')'; j++);
+				}
+
+				if (path && !link_contains_colon && input[link] != '/') {
 					if (path[0] != '/') html.add("/");
 					html.add(path);
 					html.add("/");
 				}
 
-				for (; j < in_sz && input[j] != '('; j++);
-				int link = ++j;
+				if (link_end > link)
+					html.add_and_escape(&input[link], link_end - link);
 
-				for (; j < in_sz && input[j] != ')'; j++);
+				if (link > alt) {
+					if (prev == '!')
+						html.add("\" alt=\"");
+					else
+						html.add("\">");
 
-				if (j > link)
-					html.add_and_escape(&input[link], j - link);
+					if (alt_end > alt)
+						html.add_and_escape(&input[alt], alt_end - alt);
 
-				if (prev == '!')
-					html.add("\" alt=\"");
-				else
+					if (prev == '!') {
+						if (alt_contains_colon) {
+							html.add("\" style=\"");
+							html.add_and_escape(&input[alt], alt_end - alt);
+						}
+						html.add("\">");
+					}
+				}
+				else {
 					html.add("\">");
+					if (prev != '!')
+						html.add_and_escape(&input[link], link_end - link);
+				}
 
-				if (alt_end > alt)
-					html.add_and_escape(&input[alt], alt_end - alt);
-
-				if (prev == '!')
-					html.add("\">");
-				else
+				if (prev != '!')
 					html.add("</a>");
 
-				i = j+1;
+				i = j;
 			}
 		}
 
@@ -393,6 +435,12 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 		html.add("</code>\n");
 	if (is_strikethrough)
 		html.add("</s>\n");
+
+	int em_level = level_asterisks + level_underscores;
+	if (em_level == 1 || em_level == 3)
+		html.add("</em>\n");
+	if (em_level == 2 || em_level == 3)
+		html.add("</strong>\n");
 
 	while (tag_cursor > 0) {
 		const char *tag = closing_tag_strings[tag_levels[tag_cursor]];

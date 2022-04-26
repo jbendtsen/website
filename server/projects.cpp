@@ -241,6 +241,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 
 	const int proj_root = 7; // skips past "content" (length 7), starts at a '/'
 	add_directory_html(html, fs, proj_dir, path.data() + proj_root, 11+proj_len, show_raw_file);
+	path.data()[path.len] = 0;
 
 	html->add("</div><hr />");
 	html->add("<a id=\"proj-download\" href=\"/projects/");
@@ -329,6 +330,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 			html->add("<div id=\"proj-content\"><article class=\"proj-md\">");
 
 			//fs.refresh_file(f);
+			log_info("{s}", path.data());
 			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0, 0);
 			html->add("</article></div>");
 		}
