@@ -102,8 +102,11 @@ void add_banner(Filesystem& fs, String *html, int hl_idx)
 	html->add("\" href=\"/projects\"><span>PROJECTS");
 
 	html->add("</span></a></div>");
-	html->add("<div class=\"nav-item nav-dropdown\"><span>TOOLS</span></div>");
-	html->add("</nav>");
+
+	html->add("<div class=\"nav-item nav-dropdown\"><span>TOOLS</span><div>");
+	html->add("<p><a href=\"/markdown\">Markdown Editor</a></p>");
+
+	html->add("</div></div></nav>");
 }
 
 Pool::Pool() {
