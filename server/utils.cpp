@@ -101,7 +101,9 @@ void add_banner(Filesystem& fs, String *html, int hl_idx)
 	if (hl_idx == 2) html->add(" nav-item-cur");
 	html->add("\" href=\"/projects\"><span>PROJECTS");
 
-	html->add("</span></a></div></nav>");
+	html->add("</span></a></div>");
+	html->add("<div class=\"nav-item nav-dropdown\"><span>TOOLS</span></div>");
+	html->add("</nav>");
 }
 
 Pool::Pool() {

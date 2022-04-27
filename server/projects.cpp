@@ -124,7 +124,6 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 	}
 
 	html->add("</div></body></html>");
-	log_info("{s}", html->data());
 }
 
 static void add_directory_html(String *html, Filesystem& fs, int didx, char *path_buf, int path_len, bool raw_url)

@@ -8,43 +8,48 @@ body {
 }
 nav {
 	position: relative;
-	min-height: 4.5em;
+	z-index: 0;
+	display: flex;
+	height: 4.5em;
 	border-bottom: 1px solid #ccc;
 	background-color: #303440;
 }
 #inner-nav {
-	position: absolute;
 	display: flex;
-	flex-direction: row;
-	margin: auto;
 	padding-left: 0.5em;
-	top: 0;
-	bottom: 0;
-	left: 0;
 }
 .nav-item {
-	display: flex;
-	flex-direction: column-reverse;
-	justify-content: center;
 	font-family: Noto Sans, Gadugi, sans-serif;
 	text-decoration: none;
-	padding-left: 1em;
-	padding-right: 1em;
+	color: #bbc;
+}
+.nav-item span {
+	display: block;
+	height: calc(100% - 0.9em);
+	font-size: 1.5em;
+	font-weight: bold;
+	padding-top: 0.9em;
+	padding-left: 0.4em;
+	padding-right: 0.4em;
+	margin-left: 0.3em;
+	margin-right: 0.3em;
 }
 .nav-item :hover {
 	color: #fff0a0;
 }
-.nav-item.nav-item-cur span {
+.nav-item-cur {
 	color: #dde;
 }
-.nav-item.nav-item-cur span:hover {
+.nav-item-cur :hover {
 	color: #fff0a0;
 }
-.nav-item span {
-	color: #bbc;
-	font-size: 1.5em;
-	font-weight: bold;
-	margin-top: 0.3em;
+.nav-dropdown {
+	cursor: default;
+}
+.nav-dropdown :hover {
+	background-color: #303440;
+	/*height: 300px;
+	width: 200px;*/
 }
 
 hr {
