@@ -36,7 +36,7 @@ static const char *months[] = {
 	"December"
 };
 
-Space produce_markdown_html(String& html, const char *input, int in_sz, const char *path, long created_time, int line_limit)
+Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown_Params& md_params)
 {
 	Space title = {0};
 	html.reserve(html.len + in_sz);
@@ -290,6 +290,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 
 				if (prev == '!')
 					html.add("<img src=\"");
+				else if (md_params.disable_anchors)
+					html.add("<span href=\"");
 				else
 					html.add("<a href=\"");
 
@@ -319,9 +321,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 					for (; j < in_sz && input[j] != ')'; j++);
 				}
 
-				if (path && !link_contains_colon && input[link] != '/') {
-					if (path[0] != '/') html.add("/");
-					html.add(path);
+				if (md_params.path && !link_contains_colon && input[link] != '/') {
+					if (md_params.path[0] != '/') html.add("/");
+					html.add(md_params.path);
 					html.add("/");
 				}
 
@@ -352,7 +354,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 				}
 
 				if (prev != '!')
-					html.add("</a>");
+					html.add(md_params.disable_anchors ? "</span>" : "</a>");
 
 				i = j;
 			}
@@ -388,8 +390,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			if (header_level == 1 && !title.size) {
 				title.size = i - title.offset;
 			}
-			else if (header_level == 2 && created_time) {
-				struct tm *date = localtime(&created_time);
+			else if (header_level == 2 && md_params.created_time) {
+				struct tm *date = localtime(&md_params.created_time);
 				int day_kind = 0;
 				int day_mod10 = date->tm_mday % 10;
 				if (day_mod10 < 4 && (date->tm_mday < 4 || date->tm_mday > 20))
@@ -404,7 +406,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 				);
 
 				html.add(datebuf);
-				created_time = 0;
+				md_params.created_time = 0;
 			}
 
 			header_level = 0;
@@ -419,7 +421,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, const ch
 			prev_nl_pos = i;
 
 			nl_count++;
-			if (line_limit > 0 && nl_count >= line_limit)
+			if (md_params.line_limit > 0 && nl_count >= md_params.line_limit)
 				break;
 		}
 
@@ -471,7 +473,8 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 		int md_len = request.str.len - request.header_size;
 
 		response.mime = "text/plain";
-		produce_markdown_html(response.html, md_text, md_len, nullptr, 0, 0);
+		Markdown_Params md_params = {0};
+		produce_markdown_html(response.html, md_text, md_len, md_params);
 		return;
 	}
 

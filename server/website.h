@@ -353,6 +353,13 @@ struct Filesystem {
 	bool add_file_to_html(String *html, const char *path);
 };
 
+struct Markdown_Params {
+	char *path;
+	long created_time;
+	int line_limit;
+	bool disable_anchors;
+};
+
 bool strings_match(const char *a, const char *b, int len);
 int find_character(const char *str, char c, int len);
 HTML_Type lookup_ext(const char *ext);
@@ -362,7 +369,7 @@ void add_banner(Filesystem& fs, String *html, int hl_idx);
 
 void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response);
 
-Space produce_markdown_html(String& html, const char *input, int in_sz, const char *path, long created_time, int line_limit);
+Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown_Params& md_params);
 void serve_markdown_tester(Filesystem& fs, Request& request, Response& response);
 
 void serve_404(Filesystem& fs, Response& response);

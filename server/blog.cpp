@@ -20,7 +20,12 @@ static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
 	//fs.refresh_file(blog_idx);
 
 	html->add("<article class=\"blog\">");
-	produce_markdown_html(*html, (const char*)file.buffer, file.size, nullptr, file.created_time, BLOG_PREVIEW_LINE_LIMIT);
+	Markdown_Params md_params = {
+		.created_time = file.created_time,
+		.line_limit = BLOG_PREVIEW_LINE_LIMIT,
+		.disable_anchors = true
+	};
+	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, md_params);
 	html->add("</article>");
 
 	html->add("</div></a>");
@@ -117,7 +122,10 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	add_banner(fs, html, NAV_IDX_BLOG);
 
 	html->add("<article class=\"blog\">");
-	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, nullptr, file.created_time, 0);
+	Markdown_Params md_params = {
+		.created_time = file.created_time
+	};
+	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, md_params);
 	html->add("</article>");
 
 	html->add("</body></html>");

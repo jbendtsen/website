@@ -111,7 +111,12 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 
 		//fs.refresh_file(f);
 		html->add("<article class=\"proj-md\">");
-		produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_path.data(), 0, PROJECT_PREVIEW_LINE_LIMIT);
+		Markdown_Params md_params = {
+			.path = md_path.data(),
+			.line_limit = PROJECT_PREVIEW_LINE_LIMIT,
+			.disable_anchors = true
+		};
+		produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
 		html->add("</article></a>");
 
 		md_path.scrub(pname_len + 1);
@@ -119,6 +124,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 	}
 
 	html->add("</div></body></html>");
+	log_info("{s}", html->data());
 }
 
 static void add_directory_html(String *html, Filesystem& fs, int didx, char *path_buf, int path_len, bool raw_url)
@@ -329,9 +335,10 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 		if (f >= 0) {
 			html->add("<div id=\"proj-content\"><article class=\"proj-md\">");
 
-			//fs.refresh_file(f);
-			log_info("{s}", path.data());
-			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, path.data(), 0, 0);
+			Markdown_Params md_params = {
+				.path = path.data()
+			};
+			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
 			html->add("</article></div>");
 		}
 	}
