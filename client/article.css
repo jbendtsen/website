@@ -56,3 +56,11 @@ article code, .code, .code-java, .code-js {
 	font-style: oblique;
 	background-color: #eee;
 }
+.chapter-title {
+	font-weight: bold;
+	font-size: 120%;
+	width: 100%;
+	text-align: center;
+	display: inline-block;
+	margin: 0.5em 0 0.5em 0;
+}

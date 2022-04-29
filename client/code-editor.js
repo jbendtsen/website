@@ -363,8 +363,11 @@ class CodeEditor {
 
 		var selected = this.text.substring(start, end);
 
-		if (should_delete)
+		if (should_delete) {
 			this.text = this.text.substring(0, start) + this.text.substring(end);
+			this.cur1 = start;
+			this.cur2 = start;
+		}
 
 		return selected;
 	}

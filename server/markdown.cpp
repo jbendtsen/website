@@ -281,7 +281,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			}
 		}
 		else if (!was_esc) {
-			if (c == '!') {
+			if (c == '!' || c == '?') {
 				if (i < in_sz-1 && input[i+1] == '[')
 					should_process = false;
 			}
@@ -290,6 +290,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 
 				if (prev == '!')
 					html.add("<img src=\"");
+				else if (prev == '?')
+					html.add("<span ");
 				else if (md_params.disable_anchors)
 					html.add("<span href=\"");
 				else
@@ -321,39 +323,61 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					for (; j < in_sz && input[j] != ')'; j++);
 				}
 
-				if (md_params.path && !link_contains_colon && input[link] != '/') {
-					if (md_params.path[0] != '/') html.add("/");
-					html.add(md_params.path);
-					html.add("/");
+				if (prev != '?') {
+					if (md_params.path && !link_contains_colon && input[link] != '/') {
+						if (md_params.path[0] != '/') html.add("/");
+						html.add(md_params.path);
+						html.add("/");
+					}
+
+					if (link_end > link)
+						html.add_and_escape(&input[link], link_end - link);
 				}
 
-				if (link_end > link)
+				if (link <= alt) {
+					html.add("\">");
+					if (prev != '!' && prev != '?')
+						html.add_and_escape(&input[link], link_end - link);
+				}
+				else if (prev == '?') {
+					if (input[alt] == '=' && alt_end - alt > 1) {
+						html.add("class=\"");
+						alt++;
+					}
+					else if (alt_contains_colon) {
+						html.add("style=\"");
+					}
+					html.add_and_escape(&input[alt], alt_end - alt);
+					html.add("\">");
 					html.add_and_escape(&input[link], link_end - link);
-
-				if (link > alt) {
+				}
+				else {
 					if (prev == '!')
 						html.add("\" alt=\"");
 					else
 						html.add("\">");
 
-					if (alt_end > alt)
+					if (alt_end > alt) {
 						html.add_and_escape(&input[alt], alt_end - alt);
+					}
 
 					if (prev == '!') {
-						if (alt_contains_colon) {
+						if (input[alt] == '=' && alt_end - alt > 1) {
+							html.add("\" class=\"");
+							alt++;
+							html.add_and_escape(&input[alt], alt_end - alt);
+						}
+						else if (alt_contains_colon) {
 							html.add("\" style=\"");
 							html.add_and_escape(&input[alt], alt_end - alt);
 						}
 						html.add("\">");
 					}
 				}
-				else {
-					html.add("\">");
-					if (prev != '!')
-						html.add_and_escape(&input[link], link_end - link);
-				}
 
-				if (prev != '!')
+				if (prev == '?')
+					html.add("</span>");
+				else if (prev != '!')
 					html.add(md_params.disable_anchors ? "</span>" : "</a>");
 
 				i = j;

@@ -1,7 +1,6 @@
 #projects {
-	display: flex;
-	flex-direction: row;
-	flex-wrap: wrap;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, calc(1.1 * 24em));
 	justify-content: center;
 }
 .proj-box {
@@ -14,7 +13,7 @@
 	border-left: 1px solid #ddd;
 	border-bottom: 1px solid #fff;
 	border-right: 1px solid #fff;
-	width: min(24em, 90vw);
+	width: 24em;
 	margin: 1em;
 }
 .proj-box:hover {
