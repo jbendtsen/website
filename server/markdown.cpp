@@ -300,7 +300,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 				int j = i+1;
 				int alt = j;
 				bool alt_contains_colon = false;
-				for (; j < in_sz && input[j] != ']' && input[j] != '"' && input[j] != '\''; j++) {
+				for (; j < in_sz && input[j] != ']'; j++) {
 					if (input[j] == ':')
 						alt_contains_colon = true;
 				}
@@ -315,7 +315,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					link_contains_colon = false;
 					link = j + 2;
 
-					for (; j < in_sz && input[j] != ')' && input[j] != '"' && input[j] != '\''; j++) {
+					for (; j < in_sz && input[j] != ')'; j++) {
 						if (input[j] == ':')
 							link_contains_colon = true;
 					}

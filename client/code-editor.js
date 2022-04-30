@@ -138,7 +138,7 @@ class CodeEditor {
 				}
 			}
 
-			if (kind != 0)
+			if (start_kind != 0 && kind != 0)
 				break;
 		}
 
@@ -169,7 +169,7 @@ class CodeEditor {
 				}
 			}
 
-			if (kind != 0)
+			if (start_kind != 0 && kind != 0)
 				break;
 		}
 
