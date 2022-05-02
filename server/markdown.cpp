@@ -9,6 +9,8 @@
 #define TAG_H5 5
 #define TAG_H6 6
 #define TAG_LI 7
+#define TAG_TR 8
+#define TAG_TD 9
 
 static const char *closing_tag_strings[] = {
 	"</p>\n",
@@ -19,6 +21,8 @@ static const char *closing_tag_strings[] = {
 	"</h5>\n",
 	"</h6>\n",
 	"</li>\n",
+	"</tr>\n",
+	"</td>\n"
 };
 
 static const char *months[] = {
@@ -60,6 +64,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 	int prev_line_len = 0;
 	int prev_nl_pos = 0;
 	int code_type = 0;
+	int table_mode = 0;
+	int new_table_mode = 0;
+	int table_col_idx = 0;
 	bool ignore_underscores = false;
 	bool should_not_open_tag = false;
 	bool started_line = false;
@@ -85,27 +92,55 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			else if (c == '\t') {
 				leading_spaces += 4;
 			}
-			else if (code_type == 0 && c == '>') {
-				quote_level++;
-			}
-			else if (code_type == 0 && (c == '-' || c == '+' || c == '*')) {
-				if (i < in_sz-1 && input[i+1] == ' ') {
-					new_list_level = (leading_spaces / 4) + 1;
-					is_list_asterisk = c == '*';
+			else if (code_type == 0) {
+				if (c == '>') {
+					quote_level++;
 				}
-				else if (i < in_sz-2 && input[i+1] == c && input[i+2] == c) {
-					html.add("<hr>");
+				else if (c == '#') {
+					header_level++;
+					if (header_level > 6)
+						started_line = true;
+				}
+				else if (c == '|') {
 					should_process = false;
-					while (i < in_sz && input[i] != '\n')
-						i++;
-					c = '\n';
-				}
-				started_line = true;
-			}
-			else if (code_type == 0 && c == '#') {
-				header_level++;
-				if (header_level > 6)
+					bool is_sep = false;
+					int j = i;
+					for (; j < in_sz; j++) {
+						if (input[j] == '\n')
+							break;
+						if (input[j] != '|' && input[j] != ' ' && input[j] != '-' && input[j] != '+' && input[j] != ':')
+							break;
+						if (input[j] == '-')
+							is_sep = true;
+					}
+					if (is_sep || j >= in_sz) {
+						i = j;
+						c = '\n';
+						should_not_open_tag = true;
+					}
+
+					new_table_mode = table_mode ? table_mode : 1;
+					new_table_mode = is_sep ? 2 : new_table_mode;
 					started_line = true;
+				}
+				else if (c == '-' || c == '+' || c == '*') {
+					if (i < in_sz-1 && input[i+1] == ' ') {
+						new_list_level = (leading_spaces / 4) + 1;
+						is_list_asterisk = c == '*';
+					}
+					else if (i < in_sz-2 && input[i+1] == c && input[i+2] == c) {
+						html.add("<hr>");
+						should_process = false;
+						while (i < in_sz && input[i] != '\n')
+							i++;
+						c = '\n';
+					}
+					started_line = true;
+				}
+				else if (c != '\n') {
+					started_line = true;
+					should_process = true;
+				}
 			}
 			else if (c != '\n') {
 				started_line = true;
@@ -116,7 +151,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 				if (tag_cursor > 0) {
 					int prev_cursor = tag_cursor;
 					int tag = tag_levels[tag_cursor];
-					if (tag == TAG_P && tag_of_prev_line == TAG_P && !header_level && !new_list_level && prev_line_len > 1) {
+					if (tag == TAG_P && tag_of_prev_line == TAG_P && !header_level && !new_list_level && !new_table_mode && prev_line_len > 1) {
 						html.add("&nbsp;");
 						should_not_open_tag = true;
 					}
@@ -128,7 +163,6 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 							tag_levels[0] = 0;
 						}
 
-						//log_info("prev_cursor={d}", prev_cursor);
 						html.add(tag_str);
 					}
 				}
@@ -160,6 +194,29 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					html.add("</code>");
 				}
 
+				if (new_table_mode != table_mode) {
+					if (table_mode == 0) {
+						html.add("<table>");
+						html.add(new_table_mode == 1 ? "<thead>" : "<tbody>");
+					}
+					else {
+						if (table_mode == 1) {
+							html.add("</thead>");
+							if (new_table_mode)
+								html.add("<tbody>");
+						}
+						else {
+							if (new_table_mode == 1)
+								html.add("</tbody><thead>");
+							else if (!new_table_mode)
+								html.add("</tbody>");
+						}
+						if (!new_table_mode)
+							html.add("</table>");
+					}
+					table_mode = new_table_mode;
+				}
+
 				if (!should_not_open_tag) {
 					if (tag_cursor < 15)
 						tag_cursor++;
@@ -179,7 +236,12 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 						tag_levels[tag_cursor] = header_level;
 					}
 					else {
-						if (list_level > 0) {
+						if (table_mode) {
+							tag_levels[tag_cursor] = TAG_TR;
+							html.add("<tr>");
+							html.add("<td>");
+						}
+						else if (list_level > 0) {
 							tag_levels[tag_cursor] = TAG_LI;
 							html.add("<li>");
 						}
@@ -243,6 +305,14 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					html.add(is_strikethrough ? "<s>" : "</s>");
 				}
 				consq_tildes = 0;
+			}
+
+			if (c == '|' && table_mode) {
+				if (table_col_idx)
+					html.add("</td><td>");
+
+				table_col_idx++;
+				should_process = false;
 			}
 		}
 
@@ -433,6 +503,20 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 				md_params.created_time = 0;
 			}
 
+			if (table_mode) {
+				while (tag_cursor > 0) {
+					int tag = tag_levels[tag_cursor];
+					const char *tag_str = closing_tag_strings[tag];
+					tag_cursor--;
+
+					if (tag == TAG_TR) {
+						html.add("</td></tr>");
+						break;
+					}
+					html.add(tag_str);
+				}
+			}
+
 			header_level = 0;
 			tag_of_prev_line = tag_levels[tag_cursor];
 			started_line = false;
@@ -440,6 +524,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			quote_level = 0;
 			leading_spaces = 0;
 			new_list_level = 0;
+			new_table_mode = 0;
+			table_col_idx = 0;
 
 			prev_line_len = i - prev_nl_pos - 1;
 			prev_nl_pos = i;
@@ -473,6 +559,11 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 		tag_cursor--;
 
 		html.add(tag);
+	}
+
+	if (table_mode) {
+		html.add(table_mode == 1 ? "</thead>" : "</tbody>");
+		html.add("</table>");
 	}
 
 	return title;
