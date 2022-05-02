@@ -103,7 +103,7 @@ void String::reserve(int sz) {
 	ptr = buf;
 }
 
-void String::add(String str) {
+int String::add(String str) {
 	char *src_data = str.data();
 	int head = len;
 	int new_size = resize(len + str.len);
@@ -113,12 +113,16 @@ void String::add(String str) {
 		char *dst_data = data();
 		memcpy(dst_data + head, src_data, to_add);
 		dst_data[head + to_add] = 0;
+		to_add--;
 	}
+
+	return to_add;
 }
 
-void String::add(const char *str, int size) {
+int String::add(const char *str, int size) {
 	size = size < 0 ? strlen(str) : size;
-	if (size == 0) return;
+	if (size == 0)
+		return 0;
 
 	int head = len;
 	int new_size = resize(len + size);
@@ -128,14 +132,17 @@ void String::add(const char *str, int size) {
 		char *dst_data = data();
 		memcpy(dst_data + head, str, to_add);
 		dst_data[head + to_add] = 0;
+		to_add--;
 	}
+
+	return to_add;
 }
 
-void String::add(char c) {
-	add(&c, 1);
+int String::add(char c) {
+	return add(&c, 1);
 }
-void String::add(const char *str) {
-	add(str, -1);
+int String::add(const char *str) {
+	return add(str, -1);
 }
 
 void String::assign(const char *str, int size) {
@@ -155,13 +162,14 @@ void String::add_chars(char c, int n) {
 		*p++ = c;
 }
 
-void String::add_and_escape(const char *str, int size) {
+int String::add_and_escape(const char *str, int size) {
 	if (!str)
-		return;
+		return 0;
 	if (size <= 0)
 		size = strlen(str);
 
 	int head = len;
+	int old_len = len;
 	resize(len + size);
 
 	for (int i = 0; str[i] && i < size; i++) {
@@ -185,6 +193,7 @@ void String::add_and_escape(const char *str, int size) {
 	}
 
 	len = head;
+	return len - old_len;
 }
 
 struct String_Format {

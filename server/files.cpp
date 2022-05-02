@@ -260,7 +260,7 @@ int refresh_file(FS_File *file, const char *path)
 	}
 
 	file->crc = ~crc;
-	file->flags |= is_ascii * FILE_FLAG_ASCII;
+	file->flags |= is_ascii * FS_FLAG_ASCII;
 	return 0;
 }
 
@@ -280,9 +280,12 @@ struct Sort_Numbers {
 };
 
 template <typename Entry>
-static long fs_add_entries(Vector<Entry>& entries, Pool& name_pool, int parent_dir, String& path, Sort_Buffer *sorter, int count)
+static long fs_add_entries(Vector<Entry>& entries, Pool& name_pool, int parent_dir, String *path, Sort_Buffer *sorter, int count)
 {
 	std::sort(sorter->offsets, sorter->offsets + count, [](char *a, char *b) { return strcmp(a, b) < 0; });
+
+	String link_path;
+	link_path.add("./");
 
 	struct stat st;
 	int first = entries.size;
@@ -291,12 +294,32 @@ static long fs_add_entries(Vector<Entry>& entries, Pool& name_pool, int parent_d
 		int name_idx = name_pool.head;
 		int len = name_pool.add(sorter->offsets[i]);
 
-		path.add(name_pool.at(name_idx), len);
-		int res = stat(path.data(), &st);
+		int res = -1;
+		bool is_link = false;
+		if (name_pool.buf[name_pool.head-2] == ':') {
+			is_link = true;
+			name_pool.buf[name_pool.head-2] = 0;
+			name_pool.head--;
+
+			char *link = &sorter->offsets[i][len-2];
+			len = 0;
+			while (*link != ':') link--;
+			link++;
+
+			int link_len = link_path.add(link);
+			link_path.scrub(1);
+
+			res = stat(link_path.data(), &st);
+			link_path.scrub(link_len);
+		}
+		else {
+			path->add(name_pool.at(name_idx), len);
+			res = stat(path->data(), &st);
+		}
 
 		sorter->indices[i] = i;
-		sorter->modified[i] = st.st_mtim.tv_sec;
-		sorter->created[i] = st.st_ctim.tv_sec;
+		sorter->modified[i] = res < 0 ? 0 : st.st_mtim.tv_sec;
+		sorter->created[i] = res < 0 ? 0 : st.st_ctim.tv_sec;
 
 		int next = i < count-1 ? entries.size+1 : -1;
 
@@ -304,16 +327,17 @@ static long fs_add_entries(Vector<Entry>& entries, Pool& name_pool, int parent_d
 		e.next.alpha = next;
 		e.parent = parent_dir;
 		e.name_idx = name_idx;
-		e.created_time = st.st_ctim.tv_sec;
-		e.modified_time = st.st_mtim.tv_sec;
+		e.created_time = res < 0 ? 0 : st.st_ctim.tv_sec;
+		e.modified_time = res < 0 ? 0 : st.st_mtim.tv_sec;
+		e.flags = is_link * FS_FLAG_WAS_LINK;
 
 		if constexpr (std::is_same_v<Entry, FS_File>) {
-			refresh_file(&e, path.data());
+			refresh_file(&e, path->data());
 		}
 
 		entries.add(e);
 
-		path.scrub(len);
+		path->scrub(len);
 	}
 
 	Sort_Numbers numbers;
@@ -338,9 +362,9 @@ static long fs_add_entries(Vector<Entry>& entries, Pool& name_pool, int parent_d
 	return (modified_first << 32) | created_first;
 }
 
-static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_Buffer *sort_buf_dirs, Sort_Buffer *sort_buf_files, Pool& allowed_dirs, char *list_dir_buffer)
+static int fs_init_directory(Filesystem *fs, String *path, int parent_dir, Sort_Buffer *sort_buf_dirs, Sort_Buffer *sort_buf_files, Pool *allowed_dirs, Pool *links, char *list_dir_buffer)
 {
-	int path_fd = openat(AT_FDCWD, path.data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
+	int path_fd = openat(AT_FDCWD, path->data(), O_RDONLY | O_NONBLOCK | O_DIRECTORY | O_CLOEXEC);
 	if (path_fd < 0)
 		return -1;
 
@@ -352,7 +376,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 	if (read_sz <= 0)
 		return -2;
 
-	int was_empty_tree = fs.total_name_tree_size == 0;
+	int was_empty_tree = fs->total_name_tree_size == 0;
 
 	int off = 0;
 	int n_files = 0;
@@ -376,8 +400,8 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 			if (was_empty_tree) {
 				allowed = false;
 				int idx = 0;
-				while (idx < allowed_dirs.head) {
-					char *str = &allowed_dirs.buf[idx];
+				while (idx < allowed_dirs->head) {
+					char *str = &allowed_dirs->buf[idx];
 					if (!strcmp(name, str)) {
 						allowed = true;
 						break;
@@ -402,7 +426,7 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 			break;
 		}
 
-		fs.total_name_tree_size += path.len + strlen(name) + (dir->d_type == DT_DIR);
+		fs->total_name_tree_size += path->len + strlen(name) + (dir->d_type == DT_DIR);
 
 		sorter->offsets[*n] = name;
 		*n += 1;
@@ -411,46 +435,133 @@ static int fs_init_directory(Filesystem& fs, String& path, int parent_dir, Sort_
 		off += record_len;
 	}
 
-	if (n_dirs > 0) {
-		int cur = fs.dirs.size;
-		long info = fs_add_entries(fs.dirs, fs.name_pool, parent_dir, path, sort_buf_dirs, n_dirs);
+	int path_off = 0;
+	if (links) {
+		char *p = path->data();
+		while (*p && *p == '.') {
+			path_off++;
+			p++;
+		}
+		while (*p && *p == '/') {
+			path_off++;
+			p++;
+		}
 
-		fs.dirs[parent_dir].first_dir = (FS_Next){
+		int idx = 0;
+		while (idx < links->head) {
+			p = &links->buf[idx];
+			int len = 0;
+			while (*p && *p != ':') {
+				len++;
+				p++;
+			}
+			int path_len = path->len - path_off - 1; // minus 1 to account for forward slash
+			if (*p == ':' && len == path_len && !memcmp(path->data() + path_off, &links->buf[idx], len)) {
+				char *link = p + 1;
+				int link_len = 0;
+				for (; link[link_len]; link_len++);
+
+				if (link_len > 1 && link[link_len-1] == ':') {
+					int name_off = link_len-1;
+					for (; name_off >= 0 && link[name_off] != '/'; name_off--);
+					name_off++;
+					sort_buf_dirs->offsets[n_dirs++] = &link[name_off];
+				}
+			}
+
+			idx += strlen(&links->buf[idx]) + 1;
+		}
+	}
+
+	if (n_dirs > 0) {
+		int cur = fs->dirs.size;
+		long info = fs_add_entries(fs->dirs, fs->name_pool, parent_dir, path, sort_buf_dirs, n_dirs);
+
+		fs->dirs[parent_dir].first_dir = (FS_Next){
 			/*.alpha =*/ cur,
 			/*.modified =*/ cur + (int)(info >> 32),
 			/*.created =*/ cur + (int)info
 		};
 	}
 	if (n_files > 0) {
-		int cur = fs.files.size;
-		long info = fs_add_entries(fs.files, fs.name_pool, parent_dir, path, sort_buf_files, n_files);
+		int cur = fs->files.size;
+		long info = fs_add_entries(fs->files, fs->name_pool, parent_dir, path, sort_buf_files, n_files);
 
-		fs.dirs[parent_dir].first_file = (FS_Next){
+		fs->dirs[parent_dir].first_file = (FS_Next){
 			/*.alpha =*/ cur,
 			/*.modified =*/ cur + (int)(info >> 32),
 			/*.created =*/ cur + (int)info
 		};
 	}
 
-	int end = fs.dirs.size;
+	int end = fs->dirs.size;
 	int start = end - n_dirs;
 
 	for (int i = start; i < end; i++) {
-		int n = fs.dirs[i].name_idx;
-		char *name = &fs.name_pool.buf[n];
+		if (fs->dirs[i].flags & FS_FLAG_WAS_LINK)
+			continue;
+
+		int n = fs->dirs[i].name_idx;
+		char *name = &fs->name_pool.buf[n];
 		int len = strlen(name);
-		path.add(name, len);
-		path.add('/');
+		path->add(name, len);
+		path->add('/');
 
-		fs_init_directory(fs, path, i, sort_buf_dirs, sort_buf_files, allowed_dirs, list_dir_buffer);
+		fs_init_directory(fs, path, i, sort_buf_dirs, sort_buf_files, allowed_dirs, links, list_dir_buffer);
 
-		path.scrub(len + 1);
+		path->scrub(len + 1);
+	}
+
+	if (links) {
+		String link_path;
+		link_path.add("./");
+
+		int idx = 0;
+		while (idx < links->head) {
+			char *p = &links->buf[idx];
+			int len = 0;
+			while (*p && *p != ':') {
+				len++;
+				p++;
+			}
+
+			int path_len = path->len - path_off - 1; // minus 1 to account for forward slash
+			if (*p == ':' && len == path_len && !memcmp(path->data() + path_off, &links->buf[idx], len)) {
+				char *link = p + 1;
+				int link_len = 0;
+				for (; link[link_len]; link_len++);
+
+				if (link_len > 1 && link[link_len-1] == ':') {
+					int name_off = link_len-1;
+					for (; name_off >= 0 && link[name_off] != '/'; name_off--);
+					name_off++;
+
+					for (int i = start; i < end; i++) {
+						if (fs->dirs[i].flags & FS_FLAG_WAS_LINK) {
+							int n = fs->dirs[i].name_idx;
+							char *name = &fs->name_pool.buf[n];
+							int name_len = strlen(name);
+
+							if (name_len == (link_len-1) - name_off && !memcmp(name, &link[name_off], name_len)) {
+								link_path.add(link, link_len-1);
+								link_path.add('/');
+								fs_init_directory(fs, &link_path, i, sort_buf_dirs, sort_buf_files, allowed_dirs, links, list_dir_buffer);
+								link_path.scrub(link_len);
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			idx += strlen(&links->buf[idx]) + 1;
+		}
 	}
 
 	return 0;
 }
 
-int Filesystem::init_at(const char *initial_path, Pool& allowed_dirs, char *list_dir_buffer)
+int Filesystem::init_at(const char *initial_path, Pool& allowed_dirs, Pool& links, char *list_dir_buffer)
 {
 	name_pool.init(512);
 
@@ -474,7 +585,7 @@ int Filesystem::init_at(const char *initial_path, Pool& allowed_dirs, char *list
 	dirs.add(FS_Directory::make_empty());
 
 	String path(starting_path);
-	return fs_init_directory(*this, path, 0, &sort_buf_dirs, &sort_buf_files, allowed_dirs, list_dir_buffer);
+	return fs_init_directory(this, &path, 0, &sort_buf_dirs, &sort_buf_files, &allowed_dirs, &links, list_dir_buffer);
 }
 
 void Filesystem::lookup(int *dir_idx, int *file_idx, const char *path, int max_len)

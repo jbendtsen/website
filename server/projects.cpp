@@ -267,7 +267,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 		else {
 			HTML_Type file_type = { NULL };
 
-			if ((fs.files[fidx].flags & FILE_FLAG_ASCII) == 0) {
+			if ((fs.files[fidx].flags & FS_FLAG_ASCII) == 0) {
 				char *fname = fs.name_pool.at(fs.files[fidx].name_idx);
 				int len = strlen(fname);
 				char *p = &fname[len-1];

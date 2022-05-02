@@ -69,14 +69,14 @@ struct String {
 	int resize(int sz);
 	void reserve(int sz);
 
-	void add(String str);
-	void add(const char *str, int size);
-	void add(char c);
-	void add(const char *str);
+	int add(String str);
+	int add(const char *str, int size);
+	int add(char c);
+	int add(const char *str);
 
 	void add_chars(char c, int n);
 
-	void add_and_escape(const char *str, int size = 0);
+	int add_and_escape(const char *str, int size = 0);
 
 	void assign(const char *str, int size);
 
@@ -270,6 +270,9 @@ struct File_Database {
 #define FS_ORDER_MODIFIED 1
 #define FS_ORDER_CREATED  2
 
+#define FS_FLAG_WAS_LINK  1
+#define FS_FLAG_ASCII     2
+
 union FS_Next {
 	struct {
 		int alpha;
@@ -287,6 +290,7 @@ struct FS_Directory {
 	long modified_time;
 	FS_Next first_dir;
 	FS_Next first_file;
+	u32 flags;
 
 	static FS_Directory make_empty() {
 		return {
@@ -296,12 +300,11 @@ struct FS_Directory {
 			.created_time = 0,
 			.modified_time = 0,
 			.first_dir = {-1, -1, -1},
-			.first_file = {-1, -1, -1}
+			.first_file = {-1, -1, -1},
+			.flags = 0
 		};
 	}
 };
-
-#define FILE_FLAG_ASCII  1
 
 struct FS_File {
 	FS_Next next;
@@ -343,7 +346,7 @@ struct Filesystem {
 		}
 	}
 
-	int init_at(const char *initial_path, Pool& allowed_dirs, char *list_dir_buffer);
+	int init_at(const char *initial_path, Pool& allowed_dirs, Pool& links, char *list_dir_buffer);
 	void lookup(int *dir_idx, int *file_idx, const char *path, int max_len);
 	int lookup_dir(const char *path);
 	int lookup_file(const char *path);
