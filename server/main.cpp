@@ -530,7 +530,7 @@ int main()
 	links.init(256);
 	links.add("content/projects/website:client:");
 	links.add("content/projects/website:server:");
-	links.add("content/projects/website:tests:");
+	//links.add("content/projects/website:tests:");
 
 	Filesystem *fs = new Filesystem();
 	fs->init_at(".", allowed_dirs, links, list_dir_buffer);

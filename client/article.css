@@ -6,7 +6,7 @@ article h1 {
 }
 .blog {
 	margin: auto;
-	max-width: 90%;
+	max-width: 95%;
 	width: 50em;
 	color: #141414;
 }
@@ -63,4 +63,18 @@ article code, .code, .code-java, .code-js {
 	text-align: center;
 	display: inline-block;
 	margin: 0.5em 0 0.5em 0;
+}
+article table {
+	border-collapse: collapse;
+}
+article thead {
+	font-weight: bold;
+	text-align: center;
+}
+article td {
+	border: 1px solid #ccc;
+	padding: 0.4em 1em 0.4em 1em;
+}
+article .tbl-row-1 {
+	background-color: #f4f4f4;
 }

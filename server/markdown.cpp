@@ -67,6 +67,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 	int table_mode = 0;
 	int new_table_mode = 0;
 	int table_col_idx = 0;
+	int table_row_idx = 0;
 	bool ignore_underscores = false;
 	bool should_not_open_tag = false;
 	bool started_line = false;
@@ -116,6 +117,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					if (is_sep || j >= in_sz) {
 						i = j;
 						c = '\n';
+						table_row_idx = 0;
 						should_not_open_tag = true;
 					}
 
@@ -214,6 +216,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 						if (!new_table_mode)
 							html.add("</table>");
 					}
+					table_row_idx = 0;
 					table_mode = new_table_mode;
 				}
 
@@ -238,7 +241,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					else {
 						if (table_mode) {
 							tag_levels[tag_cursor] = TAG_TR;
-							html.add("<tr>");
+							html.add("<tr class=\"tbl-row-0\">");
+							html.data()[html.len - 3] = '0' + (table_row_idx % 2);
 							html.add("<td>");
 						}
 						else if (list_level > 0) {
@@ -515,6 +519,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					}
 					html.add(tag_str);
 				}
+
+				if (!should_not_open_tag)
+					table_row_idx++;
 			}
 
 			header_level = 0;
