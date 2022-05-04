@@ -275,6 +275,10 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 					p--;
 
 				file_type = lookup_ext(p);
+
+				// if the file is a text file and it's not meant to be an iframe (webpage), ignore it
+				if (file_type.mime && file_type.tag && !memcmp(file_type.mime, "text", 4) && strcmp(file_type.tag, "iframe"))
+					file_type.tag = nullptr;
 			}
 
 			html->add("<div id=\"proj-header\"><div id=\"file-hdr-margin\">");
