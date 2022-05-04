@@ -50,6 +50,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 	int tag_of_prev_line = 0;
 	int header_level = 0;
 	int quote_level = 0;
+	int new_quote_level = 0;
 	int code_level = 0;
 	int list_level = 0;
 	int new_list_level = 0;
@@ -95,7 +96,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			}
 			else if (code_type == 0) {
 				if (c == '>') {
-					quote_level++;
+					new_quote_level++;
 				}
 				else if (c == '#') {
 					header_level++;
@@ -165,7 +166,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 							tag_levels[0] = 0;
 						}
 
-						html.add(tag_str);
+						bool is_block = code_level || quote_level;
+						html.add(tag_str, strlen(tag_str) - is_block);
 					}
 				}
 
@@ -180,6 +182,16 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					}
 				}
 				list_level = new_list_level;
+
+				if (new_quote_level != quote_level) {
+					if (!quote_level) {
+						html.add("<div class=\"quote block\">");
+					}
+					else if (!new_quote_level) {
+						html.add("</div>");
+					}
+					quote_level = new_quote_level;
+				}
 
 				int prev_code_type = code_type;
 				if (quote_level == 0 && list_level == 0 && leading_spaces >= 4) {
@@ -479,7 +491,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					const char *tag_str = closing_tag_strings[tag];
 					tag_cursor--;
 
-					html.add(tag_str);
+					bool is_block = code_level || quote_level;
+					html.add(tag_str, strlen(tag_str) - is_block);
+
 					if (tag >= 1 && tag <= 6)
 						break;
 				}
@@ -517,7 +531,9 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 						html.add("</td></tr>");
 						break;
 					}
-					html.add(tag_str);
+
+					bool is_block = code_level || quote_level;
+					html.add(tag_str, strlen(tag_str) - is_block);
 				}
 
 				if (!should_not_open_tag)
@@ -528,8 +544,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			tag_of_prev_line = tag_levels[tag_cursor];
 			started_line = false;
 			should_not_open_tag = false;
-			quote_level = 0;
 			leading_spaces = 0;
+			new_quote_level = 0;
 			new_list_level = 0;
 			new_table_mode = 0;
 			table_col_idx = 0;
@@ -597,6 +613,7 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 		response.mime = "text/plain";
 		Markdown_Params md_params = {0};
 		produce_markdown_html(response.html, md_text, md_len, md_params);
+		log_info("{S}", response.html.data(), response.html.len);
 		return;
 	}
 
