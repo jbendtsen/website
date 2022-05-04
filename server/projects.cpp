@@ -235,7 +235,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 
 	html->add("<div id=\"proj-page\"><div id=\"proj-sidebar\">");
 
-	html->add("<h2 id=\"proj-name\"><a href=\"/projects/");
+	html->add("<h2 id=\"proj-name\" class=\"link\"><a href=\"/projects/");
 	html->add_and_escape(name, proj_len);
 	html->add("\">");
 	html->add_and_escape(name, proj_len);
@@ -288,9 +288,11 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 				html->add("</div></a>");
 			}
 
-			html->add("</div><h3>");
+			html->add("</div><div class=\"link\"><a href=\"/content/projects/");
+			html->add_and_escape(name, name_len);
+			html->add("\"><h3>");
 			html->add_and_escape(&name[path_start], name_len - path_start);
-			html->add("</h3></div>");
+			html->add("</h3></a></div></div>");
 
 			if (!show_raw_file && file_type.tag) {
 				const char *blob_type = "outer";

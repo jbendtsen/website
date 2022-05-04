@@ -373,6 +373,10 @@ static int delegate_socket(Thread *threads, struct pollfd *poll_list, int fd)
 	int yes = 1;
 	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(int));
 
+	struct timeval timeout = { .tv_sec = 60, .tv_usec = 0 };
+	setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+	setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
 	if ((t->flags & THREAD_FLAG_PIPES) == 0) {
 		t->flags |= THREAD_FLAG_PIPES;
 		pipe(t->from_main);
@@ -424,9 +428,11 @@ static void http_loop(File_Database *global, Filesystem *fs)
 	struct sockaddr_in addr = {0};
 	auto addr_ptr = (struct sockaddr *)&addr;
 
+	if (!inet_aton(ADDRESS, &addr.sin_addr))
+		addr.sin_addr.s_addr = INADDR_ANY;
+
 	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(8080);
+	addr.sin_port = htons(PORT);
 
 	if (bind(sock_fd, addr_ptr, sizeof(addr)) < 0) {
 		log_error("bind() failed, errno={d}\n", errno);

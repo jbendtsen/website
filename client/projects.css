@@ -63,9 +63,6 @@
 	background-color: #f8f8f8;
 	overflow: auto;
 }
-#proj-sidebar a {
-	text-decoration: none;
-}
 #proj-sidebar hr {
 	width: 90%;
 }
@@ -74,13 +71,6 @@
 	margin-bottom: 0.5em;
 	width: 90%;
 	overflow-wrap: break-word;
-}
-#proj-name a {
-	text-decoration: none;
-	color: #222;
-}
-#proj-name a:hover {
-	text-decoration: underline;
 }
 #proj-tree {
 	width: 100%;
@@ -160,7 +150,7 @@
 #file-hdr-type-select {
 	font-size: 90%;
 	padding: 0.3em 0.4em 0.3em 0.4em;
-	color: #24f;
+	color: #444;
 }
 #proj-content {
 	flex-grow: 0;

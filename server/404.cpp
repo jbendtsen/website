@@ -14,7 +14,7 @@ void serve_404(Filesystem& fs, Response& response)
 
 	add_banner(fs, &response.html, NAV_IDX_NULL);
 
-	response.html.add("<h1>404</h1>"
-		"<p>Looks like you're outta luck, bud!</p>"
+	response.html.add("<div style=\"margin: auto; text-align: center;\"><h1>404</h1>"
+		"<p>The thing you were trying to load was not found!<br>Could be a typo, a bug or something I decided to delete. Oops.</p></div>"
 		"</body></html>");
 }
