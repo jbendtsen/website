@@ -53,7 +53,7 @@ void serve_blog_overview(Filesystem& fs, Response& response)
 
 	String *html = &response.html;
 	html->reserve(2048);
-	html->add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Blogs</title><style>\n");
+	html->add("<!DOCTYPE html><html><head>" HTML_METAS "<title>Blogs</title><style>\n");
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
@@ -101,7 +101,7 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 
 	String *html = &response.html;
 	html->reserve(2048);
-	html->add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\">\n");
+	html->add("<!DOCTYPE html><html><head>" HTML_METAS);
 
 	int title_dst_pos = html->len;
 	html->add_chars(' ', 128);

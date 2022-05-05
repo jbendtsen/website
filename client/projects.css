@@ -1,6 +1,6 @@
 #projects {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, calc(1.1 * 24em));
+	grid-template-columns: repeat(auto-fill, calc(1.1 * 24rem));
 	justify-content: center;
 }
 .proj-box {
@@ -13,9 +13,9 @@
 	border-left: 1px solid #ddd;
 	border-bottom: 1px solid #fff;
 	border-right: 1px solid #fff;
-	width: 24em;
-	height: calc(min(24em, 32vh) + 2px);
-	margin: 1em;
+	width: 24rem;
+	height: calc(min(24rem, 32vh) + 2px);
+	margin: 1rem;
 }
 .proj-box:hover {
 	background-color: #e8eaec;
@@ -26,10 +26,10 @@
 	position: relative;
 	pointer-events: none;
 	overflow: clip;
-	height: min(24em, 32vh);
-	padding-top: 0.1em;
-	margin-left: 1.5em;
-	margin-right: 1.5em;
+	height: min(24rem, 32vh);
+	padding-top: 0.1rem;
+	margin-left: 1.5rem;
+	margin-right: 1.5rem;
 }
 .proj-overlay {
 	position: absolute;
@@ -59,7 +59,7 @@
 	left: 0;
 	top: 0;
 	bottom: 0;
-	width: min(20em, 25%);
+	width: min(20rem, 25%);
 	border-right: 1px solid #ccc;
 	background-color: #f8f8f8;
 	overflow: auto;
@@ -69,7 +69,7 @@
 }
 #proj-name {
 	padding-left: 5%;
-	margin-bottom: 0.5em;
+	margin-bottom: 0.75rem;
 	width: 90%;
 	overflow-wrap: break-word;
 }
@@ -80,15 +80,15 @@
 }
 #proj-tree ul {
 	list-style-type: none;
-	padding-left: 1em;
-	padding-right: 1em;
+	padding-left: 0.75rem;
+	padding-right: 0.75rem;
 	font-family: monospace;
 	color: #222;
 }
 #proj-tree li {
 	font-style: oblique;
-	padding-left: 0.5em;
-	padding-right: 0.5em;
+	padding-left: 0.5rem;
+	padding-right: 0.5rem;
 }
 #proj-tree a {
 	display: inline-block;
@@ -107,9 +107,9 @@
 }
 #proj-download {
 	font-size: 80%;
-	margin-top: 0.2em;
+	margin-top: 0.2rem;
 	margin-left: 5%;
-	margin-bottom: 0.7em;
+	margin-bottom: 0.7rem;
 	background-color: #48f;
 	color: #f8f8f8;
 }
@@ -120,7 +120,7 @@
 	display: flex;
 	flex-direction: column;
 	position: absolute;
-	left: min(20em, 25%);
+	left: min(20rem, 25%);
 	right: 0;
 	top: 0;
 	bottom: 0;
@@ -150,7 +150,7 @@
 }
 #file-hdr-type-select {
 	font-size: 90%;
-	padding: 0.3em 0.4em 0.3em 0.4em;
+	padding: 0.3rem 0.4rem 0.3rem 0.4rem;
 	color: #444;
 }
 #proj-content {
@@ -158,8 +158,8 @@
 	overflow: auto;
 }
 .proj-md {
-	margin-left: 1em;
-	margin-right: 1em;
+	margin-left: 1rem;
+	margin-right: 1rem;
 }
 #proj-blob-outer {
 	width: calc(100% - 2px);
@@ -181,9 +181,9 @@
 .file-code code::before {
 	content: counter(listing);
 	display: inline-block;
-	width: calc(80px - 1em);
-	padding-right: 1em;
-	margin-right: 1em;
+	width: calc(80px - 1rem);
+	padding-right: 1rem;
+	margin-right: 1rem;
 	text-align: right;
 	background-color: #e8eaec;
 }

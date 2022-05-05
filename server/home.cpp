@@ -2,16 +2,16 @@
 
 void serve_home_page(Filesystem& fs, Response& response) {
 	String *html = &response.html;
-	html->add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Jack Bendtsen</title><style>");
+	html->add("<!DOCTYPE html><html><head>" HTML_METAS "<title>Jack Bendtsen</title><style>");
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
 	html->add(
 		"#home-main {\n"
-		"\tpadding: 1em;\n"
+		"\tpadding: 1rem;\n"
 		"}\n"
 		"#home-main h1 {\n"
-		"\tfont-size: 300%;\n"
+		"\tfont-size: 3rem;\n"
 		"}\n"
 	);
 

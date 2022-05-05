@@ -10,13 +10,13 @@ nav {
 	position: relative;
 	z-index: 2;
 	display: flex;
-	height: 4.5em;
+	height: 4.5rem;
 	border-bottom: 1px solid #ccc;
 	background-color: #303440;
 }
 #inner-nav {
 	display: flex;
-	padding-left: 0.5em;
+	padding-left: 0.5rem;
 }
 .nav-item {
 	font-family: Noto Sans, Gadugi, sans-serif;
@@ -25,14 +25,14 @@ nav {
 }
 .nav-item span {
 	display: block;
-	height: calc(100% - 0.9em);
-	font-size: 1.5em;
+	height: calc(100% - 0.9rem);
+	font-size: 1.5rem;
 	font-weight: bold;
-	padding-top: 0.9em;
-	padding-left: 0.4em;
-	padding-right: 0.4em;
-	margin-left: 0.3em;
-	margin-right: 0.3em;
+	padding-top: 1.3rem;
+	padding-left: 0.6rem;
+	padding-right: 0.6rem;
+	margin-left: 0.5rem;
+	margin-right: 0.5rem;
 }
 .nav-item :hover {
 	color: #fff0a0;
@@ -51,7 +51,7 @@ nav {
 }
 .nav-dropdown div {
 	background-color: inherit;
-	padding-top: 0.2em;
+	padding-top: 0.2rem;
 	border-bottom-left-radius: 6px;
 	border-bottom-right-radius: 6px;
 	border-left: 1px solid #ccc;
@@ -60,14 +60,14 @@ nav {
 }
 .nav-dropdown div p {
 	margin-top: 0;
-	margin-bottom: 0.5em;
+	margin-bottom: 0.5rem;
 }
 .nav-dropdown div a {
 	text-decoration: none;
 	color: #eee;
-	margin-top: 0.5em;
-	padding-left: 1em;
-	padding-right: 2em;
+	margin-top: 0.5rem;
+	padding-left: 1rem;
+	padding-right: 2rem;
 }
 /* this CSS selector only works if you take out the whitespace in the selector itself... ??? */
 div.nav-dropdown:hover {
@@ -86,7 +86,7 @@ hr {
 .button {
 	font-family: Noto Sans, Gadugi, sans-serif;
 	font-weight: bold;
-	padding: 0.8em;
+	padding: 0.65rem;
 }
 .no-margin-top-bottom {
 	margin-top: 0;

@@ -65,7 +65,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 	String *html = &response.html;
 	html->reserve(2048);
 
-	html->add("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Projects</title><style>");
+	html->add("<!DOCTYPE html><html><head>" HTML_METAS "<title>Projects</title><style>");
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
@@ -221,7 +221,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 	String *html = &response.html;
 	html->reserve(2048);
 
-	html->add("<!DOCTYPE html><html class=\"full\"><head><meta charset=\"UTF-8\"><title>");
+	html->add("<!DOCTYPE html><html class=\"full\"><head>" HTML_METAS "<title>");
 	html->add_and_escape(name, name_len);
 	html->add("</title><style>");
 

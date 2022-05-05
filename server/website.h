@@ -22,6 +22,8 @@
 #define NAV_IDX_BLOG      1
 #define NAV_IDX_PROJECTS  2
 
+#define HTML_METAS "\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+
 typedef unsigned char u8;
 typedef unsigned int u32;
 typedef long long s64;

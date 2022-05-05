@@ -13,8 +13,8 @@
 	border-left: 1px solid #ccc;
 	padding-right: 1px;
 	padding-bottom: 1px;
-	margin-top: 1em;
-	margin-bottom: 1em;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
 }
 .article-column a:hover {
 	background-color: #e8eaec;
@@ -22,20 +22,20 @@
 	border: 1px solid #ccc;
 }
 .article-left {
-	margin-right: 1em;
+	margin-right: 1rem;
 }
 .article-right {
-	margin-top: min(12em, 16vh);
-	margin-left: 1em;
+	margin-top: min(12rem, 16vh);
+	margin-left: 1rem;
 }
 .article-preview {
 	pointer-events: none;
 	position: relative;
 	overflow: clip;
-	height: min(24em, 32vh);
+	height: min(24rem, 32vh);
 }
 .article-preview article {
-	padding-top: 0.1em;
+	padding-top: 0.1rem;
 }
 .preview-overlay {
 	position: absolute;

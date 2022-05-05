@@ -7,11 +7,11 @@ article h1 {
 .blog {
 	margin: auto;
 	max-width: 95%;
-	width: 50em;
+	width: 50rem;
 	color: #141414;
 }
 .blog div {
-	padding: 0.5em 0.5em 0.5em 2em;
+	padding: 0.5rem 0.5rem 0.5rem 2rem;
 }
 
 .italic {
@@ -29,10 +29,10 @@ article h1 {
 	text-align: center;
 	font-weight: bold;
 	font-size: 125%;
-	margin: 1.5em;
+	margin: 1.5rem;
 }
 .block {
-	margin: 0.5em;
+	margin: 0.5rem;
 }
 article code, .code, .code-java, .code-js {
 	white-space: pre-wrap;
@@ -40,8 +40,8 @@ article code, .code, .code-java, .code-js {
 	font-family: monospace;
 	font-size: 110%;
 	background-color: #eee;
-	padding: 0.2em 0.4em 0.2em 0.4em;
-	border-radius: 0.25em;
+	padding: 0.2rem 0.4rem 0.2rem 0.4rem;
+	border-radius: 0.25rem;
 }
 .code-nowrap {
 	white-space: nowrap;
@@ -61,7 +61,7 @@ article code, .code, .code-java, .code-js {
 	width: 100%;
 	text-align: center;
 	display: inline-block;
-	margin: 0.5em 0 0.5em 0;
+	margin: 0.5rem 0 0.5rem 0;
 }
 article table {
 	border-collapse: collapse;
@@ -72,7 +72,7 @@ article thead {
 }
 article td {
 	border: 1px solid #ccc;
-	padding: 0.4em 1em 0.4em 1em;
+	padding: 0.4rem 1rem 0.4rem 1rem;
 }
 article .tbl-row-1 {
 	background-color: #f4f4f4;

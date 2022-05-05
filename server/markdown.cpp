@@ -619,9 +619,7 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 	String *html = &response.html;
 	html->add(
-		"<!DOCTYPE html><html class=\"full\"><head>"
-		"<meta charset=\"UTF-8\">"
-		"<title>Markdown Editor</title><style>\n"
+		"<!DOCTYPE html><html class=\"full\"><head>" HTML_METAS "<title>Markdown Editor</title><style>\n"
 	);
 
 	fs.add_file_to_html(html, "client/banner.css");
