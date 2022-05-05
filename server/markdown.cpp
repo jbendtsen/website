@@ -613,7 +613,7 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 		response.mime = "text/plain";
 		Markdown_Params md_params = {0};
 		produce_markdown_html(response.html, md_text, md_len, md_params);
-		log_info("{S}", response.html.data(), response.html.len);
+		//log_info("{S}", response.html.data(), response.html.len);
 		return;
 	}
 

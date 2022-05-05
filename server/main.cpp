@@ -248,7 +248,7 @@ static void produce_response(Request& request, Response& response, File_Database
 	char *header = request.str.data();
 	char *end = &header[request.header_size-1];
 
-	log_info("{S}", header, request.header_size);
+	//log_info("{S}", header, request.header_size);
 
 	char *p = header;
 	// move past method
