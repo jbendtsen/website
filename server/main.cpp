@@ -456,7 +456,7 @@ static void http_loop(File_Database *global, Filesystem *fs)
 		poll(poll_list, n_read_fds, -1);
 
 		if (poll_list[0].revents & POLLIN) {
-			log_info("Exiting");
+			log_info("Shutting down jb-website");
 			break;
 		}
 
@@ -513,6 +513,7 @@ int main()
 
 	sigemptyset(&sig_mask);
 	sigaddset(&sig_mask, SIGINT);
+	sigaddset(&sig_mask, SIGTERM);
 	sigprocmask(SIG_BLOCK, &sig_mask, nullptr);
 
 	cancel_fd = signalfd(-1, &sig_mask, 0);
