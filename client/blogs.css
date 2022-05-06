@@ -1,12 +1,10 @@
 #articles {
-	display: flex;
-	flex-direction: row;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(24rem, 40%));
 	justify-content: center;
+	column-gap: 4%;
 }
-.article-column {
-	max-width: 40%;
-}
-.article-column a {
+#articles a {
 	text-decoration: none;
 	display: block;
 	border-top: 1px solid #ccc;
@@ -16,7 +14,7 @@
 	margin-top: 1rem;
 	margin-bottom: 1rem;
 }
-.article-column a:hover {
+#articles a:hover {
 	background-color: #e8eaec;
 	padding: 0;
 	border: 1px solid #ccc;

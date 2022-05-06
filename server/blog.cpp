@@ -60,24 +60,19 @@ void serve_blog_overview(Filesystem& fs, Response& response)
 	fs.add_file_to_html(html, "client/blogs.css");
 
 	html->add(
-		"article h1 { font-size: 160%; }\n"
-		"article h2 { font-size: 125%; }\n"
-		"article h3 { font-size: 100%; }\n"
-		"article p  { font-size: 90%;  }\n"
+		"article h1 { font-size: 1.6rem; }\n"
+		"article h2 { font-size: 1.25rem; }\n"
+		"article h3 { font-size: 1rem; }\n"
+		"article p  { font-size: 0.9rem;  }\n"
 	);
 
 	html->add("\n</style></head><body>\n");
 
 	add_banner(fs, html, NAV_IDX_BLOG);
 
-	html->add("<div id=\"articles\"><div class=\"article-column article-left\">");
+	html->add("<div id=\"articles\">");
 
-	for (int i = 0; i < blogs.size; i += 2)
-		render_blog_preview(fs, html, blogs[blogs.size - i - 1]);
-
-	html->add("</div><div class=\"article-column article-right\">");
-
-	for (int i = 1; i < blogs.size; i += 2)
+	for (int i = 0; i < blogs.size; i++)
 		render_blog_preview(fs, html, blogs[blogs.size - i - 1]);
 
 	html->add("</div></body></html>");
@@ -112,9 +107,9 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	fs.add_file_to_html(html, "client/article.css");
 
 	html->add(
-		"article h1 { font-size: 200%; }\n"
-		"article h2 { font-size: 150%; }\n"
-		"article h3 { font-size: 120%; }\n"
+		"article h1 { font-size: 2rem; }\n"
+		"article h2 { font-size: 1.5rem; }\n"
+		"article h3 { font-size: 1.2rem; }\n"
 	);
 
 	html->add("\n</style></head><body>");
