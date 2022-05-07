@@ -2,7 +2,7 @@
 
 #define BLOG_PREVIEW_LINE_LIMIT 20
 
-static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
+static void render_blog_preview(Filesystem& fs, String *html, const char *class_name, int blog_idx)
 {
 	FS_File& file = fs.files[blog_idx];
 
@@ -15,6 +15,10 @@ static void render_blog_preview(Filesystem& fs, String *html, int blog_idx)
 
 	html->add("<a href=\"/blog/");
 	html->add_and_escape(fname, name_len);
+	if (class_name) {
+		html->add("\" class=\"");
+		html->add_and_escape(class_name);
+	}
 	html->add("\"><div class=\"article-preview\"><div class=\"preview-overlay\"></div>");
 
 	//fs.refresh_file(blog_idx);
@@ -72,8 +76,10 @@ void serve_blog_overview(Filesystem& fs, Response& response)
 
 	html->add("<div id=\"articles\">");
 
-	for (int i = 0; i < blogs.size; i++)
-		render_blog_preview(fs, html, blogs[blogs.size - i - 1]);
+	for (int i = 0; i < blogs.size; i++) {
+		const char *kind = i % 2 ? "blog-right" : "blog-left";
+		render_blog_preview(fs, html, kind, blogs[blogs.size - i - 1]);
+	}
 
 	html->add("</div></body></html>");
 }

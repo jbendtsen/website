@@ -1,8 +1,31 @@
 #articles {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(24rem, 40%));
+	grid-template-columns: repeat(auto-fill, 40%);
 	justify-content: center;
 	column-gap: 4%;
+}
+.blog-left {
+	margin-top: 1rem;
+	margin-bottom: 6rem;
+}
+.blog-right {
+	margin-top: 6rem;
+	margin-bottom: 1rem;
+}
+@media screen and (max-width: 720px) {
+	#articles {
+		display: grid;
+		grid-template-columns: 90%;
+		justify-content: center;
+	}
+	.blog-left {
+		margin-top: 1rem;
+		margin-bottom: 1rem;
+	}
+	.blog-right {
+		margin-top: 1rem;
+		margin-bottom: 1rem;
+	}
 }
 #articles a {
 	text-decoration: none;
@@ -11,20 +34,11 @@
 	border-left: 1px solid #ccc;
 	padding-right: 1px;
 	padding-bottom: 1px;
-	margin-top: 1rem;
-	margin-bottom: 1rem;
 }
 #articles a:hover {
 	background-color: #e8eaec;
 	padding: 0;
 	border: 1px solid #ccc;
-}
-.article-left {
-	margin-right: 1rem;
-}
-.article-right {
-	margin-top: min(12rem, 16vh);
-	margin-left: 1rem;
 }
 .article-preview {
 	pointer-events: none;
