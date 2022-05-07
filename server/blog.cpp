@@ -107,9 +107,10 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	fs.add_file_to_html(html, "client/article.css");
 
 	html->add(
-		"article h1 { font-size: 2rem; }\n"
-		"article h2 { font-size: 1.5rem; }\n"
-		"article h3 { font-size: 1.2rem; }\n"
+		"article h1 { font-size: 2.5rem; }\n"
+		"article h2 { font-size: 1.8rem; }\n"
+		"article h3 { font-size: 1.4rem; }\n"
+		"article p  { font-size: 1.2rem; }\n"
 	);
 
 	html->add("\n</style></head><body>");
