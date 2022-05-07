@@ -65,6 +65,7 @@
 	width: 100%;
 	overflow: auto;
 	flex-grow: 1;
+	font-size: 0.8rem;
 }
 #proj-tree ul {
 	list-style-type: none;
@@ -167,7 +168,7 @@
 	white-space: pre;
 	tab-size: 4;
 	font-family: monospace;
-	font-size: 110%;
+	font-size: 0.9rem;
 }
 .file-code code::before {
 	content: counter(listing);
