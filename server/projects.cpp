@@ -69,7 +69,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
-	fs.add_file_to_html(html, "client/projects.css");
+	fs.add_file_to_html(html, "client/proj-overview.css");
 
 	html->add("</style></head><body>");
 	add_banner(fs, html, NAV_IDX_PROJECTS);
@@ -227,22 +227,30 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 
 	fs.add_file_to_html(html, "client/banner.css");
 	fs.add_file_to_html(html, "client/article.css");
-	fs.add_file_to_html(html, "client/projects.css");
+	fs.add_file_to_html(html, "client/project.css");
 
-	html->add("</style></head><body class=\"full\">");
-	html->add("<div id=\"proj-screen\">");
+	html->add("</style><script>");
+	fs.add_file_to_html(html, "client/project.js");
+
+	html->add(
+		"</script></head><body class=\"full\">"
+		"<div id=\"proj-screen\">"
+	);
 	add_banner(fs, html, NAV_IDX_PROJECTS);
 
-	html->add("<div id=\"proj-page\"><div id=\"proj-sidebar\">");
-
-	html->add("<h2 id=\"proj-name\" class=\"link\"><a href=\"/projects/");
+	html->add(
+		"<div id=\"proj-page\"><div id=\"proj-sidebar\">"
+		"<h2 id=\"proj-name\" class=\"link\"><a href=\"/projects/"
+	);
 	html->add_and_escape(name, proj_len);
 	html->add("\">");
 	html->add_and_escape(name, proj_len);
 	html->add("</a></h2>");
 
-	html->add("<hr class=\"no-margin-top-bottom\">");
-	html->add("<div id=\"proj-tree\">");
+	html->add(
+		"<hr class=\"no-margin-top-bottom\">"
+		"<div id=\"proj-tree\">"
+	);
 
 	const int proj_root = 7; // skips past "content" (length 7), starts at a '/'
 	add_directory_html(html, fs, proj_dir, path.data() + proj_root, 11+proj_len, show_raw_file);
@@ -253,7 +261,13 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 	html->add_and_escape(name, proj_len);
 	html->add(".zip\"><div class=\"button\">DOWNLOAD</div>");
 
-	html->add("</div></a><div id=\"proj-main\">");
+	html->add(
+		"</a></div>"
+		"<div id=\"proj-sb-toggle\" onclick=\"toggle_project_sidebar();\">"
+			"<div id=\"proj-sb-shape-outer\" class=\"proj-sb-toggle-shape\">"
+				"<div id=\"proj-sb-shape-inner\" class=\"proj-sb-toggle-shape\">"
+		"</div></div></div><div id=\"proj-main\">"
+	);
 
 	if (path_start < name_len) {
 		path.add(&name[path_start], name_len - path_start);
