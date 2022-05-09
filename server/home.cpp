@@ -12,8 +12,8 @@ void serve_home_page(Filesystem& fs, Response& response) {
 	add_banner(fs, html, NAV_IDX_HOME);
 
 	html->add(
-		"<article id=\"home-main\" style=\"margin-top: 1rem; margin-left: 1rem; max-width: 60rem\">"
-			"<img style=\"float: left; height: 16rem; margin-bottom: 2rem; margin-right: 3rem; box-shadow: 4px 2px 10px #bbb;\" src=\"client/me.jpg\">"
+		"<article id=\"home-main\">"
+			"<img id=\"home-profile-pic\" src=\"client/me.jpg\">"
 			"<h1>Jack Bendtsen</h1>"
 			"<div id=\"home-socials\">"
 				"<a href=\"https://github.com/jbendtsen\"><img src=\"/content/github.png\"><span>jbendtsen</span></a>"
