@@ -116,7 +116,7 @@ void serve_projects_overview(Filesystem& fs, Response& response)
 			.line_limit = PROJECT_PREVIEW_LINE_LIMIT,
 			.disable_anchors = true
 		};
-		produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
+		produce_markdown_html(fs, *html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
 		html->add("</article></a>");
 
 		md_path.scrub(pname_len + 1);
@@ -357,7 +357,7 @@ void serve_specific_project(Filesystem& fs, Response& response, char *project_ty
 			Markdown_Params md_params = {
 				.path = path.data()
 			};
-			produce_markdown_html(*html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
+			produce_markdown_html(fs, *html, (const char*)fs.files[f].buffer, fs.files[f].size, md_params);
 			html->add("</article></div>");
 		}
 	}

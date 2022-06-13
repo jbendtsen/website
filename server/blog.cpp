@@ -29,7 +29,7 @@ static void render_blog_preview(Filesystem& fs, String *html, const char *class_
 		.line_limit = BLOG_PREVIEW_LINE_LIMIT,
 		.disable_anchors = true
 	};
-	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, md_params);
+	Space title = produce_markdown_html(fs, *html, (const char*)file.buffer, file.size, md_params);
 	html->add("</article>");
 
 	html->add("</div></a>");
@@ -127,7 +127,7 @@ void serve_specific_blog(Filesystem& fs, Response& response, char *name, int nam
 	Markdown_Params md_params = {
 		.created_time = file.created_time
 	};
-	Space title = produce_markdown_html(*html, (const char*)file.buffer, file.size, md_params);
+	Space title = produce_markdown_html(fs, *html, (const char*)file.buffer, file.size, md_params);
 	html->add("</article>");
 
 	html->add("</body></html>");

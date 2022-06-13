@@ -40,7 +40,7 @@ static const char *months[] = {
 	"December"
 };
 
-Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown_Params& md_params)
+Space produce_markdown_html(Filesystem& fs, String& html, const char *input, int in_sz, Markdown_Params& md_params)
 {
 	Space title = {0};
 	html.reserve(html.len + in_sz);
@@ -69,6 +69,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 	int new_table_mode = 0;
 	int table_col_idx = 0;
 	int table_row_idx = 0;
+	bool uses_canvas_js = false;
 	bool ignore_underscores = false;
 	bool should_not_open_tag = false;
 	bool started_line = false;
@@ -367,7 +368,7 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 			}
 		}
 		else if (!was_esc) {
-			if (c == '!' || c == '?') {
+			if (c == '!' || c == '?' || c == '$') {
 				if (i < in_sz-1 && input[i+1] == '[')
 					should_process = false;
 			}
@@ -378,6 +379,8 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					html.add("<img src=\"");
 				else if (prev == '?')
 					html.add("<span ");
+				else if (prev == '$')
+					html.add("<canvas class=\"needs-canvas-js\" data-js=\"");
 				else if (md_params.disable_anchors)
 					html.add("<span href=\"");
 				else
@@ -422,8 +425,15 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 
 				if (link <= alt) {
 					html.add("\">");
-					if (prev != '!' && prev != '?')
+					if (prev != '!' && prev != '?' && prev != '$')
 						html.add_and_escape(&input[link], link_end - link);
+				}
+				else if (prev == '$') {
+					if (alt_end > alt) {
+						html.add("\" data-params=\"");
+						html.add_and_escape(&input[alt], alt_end - alt);
+					}
+					html.add("\">");
 				}
 				else if (prev == '?') {
 					if (input[alt] == '=' && alt_end - alt > 1) {
@@ -461,10 +471,16 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 					}
 				}
 
-				if (prev == '?')
+				if (prev == '$') {
+					html.add("</canvas>");
+					uses_canvas_js = true;
+				}
+				else if (prev == '?') {
 					html.add("</span>");
-				else if (prev != '!')
+				}
+				else if (prev != '!') {
 					html.add(md_params.disable_anchors ? "</span>" : "</a>");
+				}
 
 				i = j;
 			}
@@ -589,6 +605,12 @@ Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown
 		html.add("</table>");
 	}
 
+	if (uses_canvas_js) {
+		html.add("<script>");
+		fs.add_file_to_html(&html, "client/md-load-canvases.js");
+		html.add("</script>");
+	}
+
 	return title;
 }
 
@@ -612,7 +634,7 @@ void serve_markdown_tester(Filesystem& fs, Request& request, Response& response)
 
 		response.mime = "text/plain";
 		Markdown_Params md_params = {0};
-		produce_markdown_html(response.html, md_text, md_len, md_params);
+		produce_markdown_html(fs, response.html, md_text, md_len, md_params);
 		//log_info("{S}", response.html.data(), response.html.len);
 		return;
 	}

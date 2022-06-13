@@ -374,7 +374,7 @@ void add_banner(Filesystem& fs, String *html, int hl_idx);
 
 void write_zip_as_response(Filesystem& fs, int dir_idx, Response& response);
 
-Space produce_markdown_html(String& html, const char *input, int in_sz, Markdown_Params& md_params);
+Space produce_markdown_html(Filesystem& fs, String& html, const char *input, int in_sz, Markdown_Params& md_params);
 void serve_markdown_tester(Filesystem& fs, Request& request, Response& response);
 
 void serve_404(Filesystem& fs, Response& response);

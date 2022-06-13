@@ -25,7 +25,7 @@ void serve_home_page(Filesystem& fs, Response& response) {
 	FS_File *home_md = &fs.files[fs.lookup_file("content/home.jb")];
 
 	Markdown_Params md_params = {0};
-	produce_markdown_html(*html, (const char *)home_md->buffer, home_md->size, md_params);
+	produce_markdown_html(fs, *html, (const char *)home_md->buffer, home_md->size, md_params);
 
 	html->add("</article></body></html>");
 }
