@@ -57,6 +57,8 @@ HTML_Type lookup_ext(const char *ext)
 		return { "text/js", "script" };
 	if (strings_match(ext, "html", len))
 		return { "text/html", "iframe" };
+	if (strings_match(ext, "pdf", len))
+		return { "application/pdf", "iframe" };
 
 	return { nullptr, nullptr };
 }

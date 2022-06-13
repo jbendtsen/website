@@ -13,7 +13,7 @@
 }
 #home-main h1 {
 	font-size: 3rem;
-	margin-top: 1rem;
+	margin-top: 0.2rem;
 	margin-bottom: 0.5rem;
 	line-height: 110%;
 }
@@ -23,7 +23,7 @@
 #home-socials {
 	display: flex;
 	flex-direction: row;
-	margin-bottom: 1.5rem;
+	margin-bottom: 1.8rem;
 	font-size: 0.7rem;
 	font-family: monospace;
 	font-style: italic;
